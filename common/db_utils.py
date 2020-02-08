@@ -5,10 +5,11 @@ def connect_db():
     return sqlite3.connect('episode_info.db')
 
 
-def initialize_tables():
-    create_episode_table()
-    create_channels_table()
-    create_series_lookup_table()
+def initialize_db():
+    if table_exists('episode_info') == 0:
+        create_episode_table()
+    if table_exists('series_lookup') == 0:
+        create_series_lookup_table()
 
 
 def create_episode_table():
@@ -17,7 +18,7 @@ def create_episode_table():
 
     c.execute('''
         CREATE TABLE episode_info (
-            series text,
+            series_id int,
             season integer,
             episode integer,
             title text,
@@ -32,15 +33,12 @@ def create_episode_table():
     conn.close()
 
 
-def save_tv_maze_episode_info(series, season, episode, title, subtitle, desc, file_name, updated_date):
+def save_tv_maze_episode_info(series_id, season, episode, title, subtitle, desc, updated_date):
     conn = connect_db()
     c = conn.cursor()
 
-    if table_exists('episode_info') == 0:
-        create_episode_table()
-
-    # params = (series, season, episode, title, subtitle, desc, length, file_name, updated_date)
-    # c.execute('INSERT INTO episode_info VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', params)
+    params = (series_id, season, episode, title, subtitle, desc, updated_date)
+    c.execute('INSERT INTO episode_info (series_id, season, episode, title, subtitle, description, last_updated_date) VALUES (?, ?, ?, ?, ?, ?, ?)', params)
     conn.commit()
     conn.close()
 
@@ -64,13 +62,21 @@ def save_series_id(series_id, series):
     conn = connect_db()
     c = conn.cursor()
 
-    if table_exists('series_lookup') == 0:
-        create_series_lookup_table()
-
     params = (series_id, series,)
-    c.execute('INSERT INTO series_lookup VALUES (?, ?)', params)
+    c.execute('INSERT INTO series_lookup (series_id, local_series_name) VALUES (?, ?)', params)
     conn.commit()
     conn.close()
+
+
+def get_series_id(series):
+    conn = connect_db()
+    c = conn.cursor()
+    result = c.execute('SELECT series_id FROM series_lookup WHERE local_series_name = ?', (series,))
+    rows = result.fetchall()
+    c.close()
+    if len(rows) == 1:
+        return rows[0][0]
+    return None
 
 
 def create_channels_table():
