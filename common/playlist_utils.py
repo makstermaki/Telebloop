@@ -34,7 +34,7 @@ def escape_special_chars(input_list):
     return result
 
 
-def get_length(filename):
+def get_video_length(filename):
     result = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
                              "format=duration", "-of",
                              "default=noprint_wrappers=1:nokey=1", filename],

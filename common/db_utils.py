@@ -1,3 +1,5 @@
+import common.tv_maze as tv_maze
+
 import sqlite3
 
 
@@ -43,6 +45,24 @@ def save_tv_maze_episode_info(series_id, season, episode, title, subtitle, desc,
     conn.close()
 
 
+def save_episode_length(series_id, season, episode, length):
+    print('Save Episode Length: ' + str(series_id) + ', ' + str(season) + ', ' + str(episode) + ', ' + str(length))
+    conn = connect_db()
+    c = conn.cursor()
+
+    params = (length, series_id, season, episode,)
+    c.execute('''
+        UPDATE episode_info
+        SET length = ?
+        WHERE
+            series_id = ? AND
+            season = ? AND
+            episode = ?
+    ''', params)
+    conn.commit()
+    conn.close()
+
+
 def create_series_lookup_table():
     conn = connect_db()
     c = conn.cursor()
@@ -68,15 +88,21 @@ def save_series_id(series_id, series):
     conn.close()
 
 
-def get_series_id(series):
+# Retrieves the TV Maze series ID for a show.
+def get_series_id(local_series_name):
     conn = connect_db()
     c = conn.cursor()
-    result = c.execute('SELECT series_id FROM series_lookup WHERE local_series_name = ?', (series,))
+    result = c.execute('SELECT series_id FROM series_lookup WHERE local_series_name = ?', (local_series_name,))
     rows = result.fetchall()
     c.close()
     if len(rows) == 1:
         return rows[0][0]
-    return None
+
+    # DB doesn't have the series ID so populate it from the TV Maze API
+    show_single_search_response = tv_maze.show_single_search(local_series_name)
+    series_id = show_single_search_response['id']
+    save_series_id(series_id, local_series_name)
+    return series_id
 
 
 def create_channels_table():
