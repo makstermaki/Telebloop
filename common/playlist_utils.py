@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 
 
@@ -11,6 +12,12 @@ def list_files_with_path(directory):
         result.append(full_path)
 
     return result
+
+
+# Accepts a file name and returns a tuple of (season, episode)
+def parse_season_episode(file_name):
+    match = re.search('S(\\d*)E(\\d*)', file_name)
+    return match.group(1), match.group(2)
 
 
 # This function accepts a list of strings and returns a new list with special characters escaped.

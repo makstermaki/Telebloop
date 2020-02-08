@@ -8,6 +8,7 @@ def connect_db():
 def initialize_tables():
     create_episode_table()
     create_channels_table()
+    create_series_lookup_table()
 
 
 def create_episode_table():
@@ -31,6 +32,47 @@ def create_episode_table():
     conn.close()
 
 
+def save_tv_maze_episode_info(series, season, episode, title, subtitle, desc, file_name, updated_date):
+    conn = connect_db()
+    c = conn.cursor()
+
+    if table_exists('episode_info') == 0:
+        create_episode_table()
+
+    # params = (series, season, episode, title, subtitle, desc, length, file_name, updated_date)
+    # c.execute('INSERT INTO episode_info VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', params)
+    conn.commit()
+    conn.close()
+
+
+def create_series_lookup_table():
+    conn = connect_db()
+    c = conn.cursor()
+
+    # The local series name field is the series name as found in the video files
+    c.execute('''
+                CREATE TABLE series_lookup (
+                    series_id int,
+                    local_series_name text
+                )
+            ''')
+    conn.commit()
+    conn.close()
+
+
+def save_series_id(series_id, series):
+    conn = connect_db()
+    c = conn.cursor()
+
+    if table_exists('series_lookup') == 0:
+        create_series_lookup_table()
+
+    params = (series_id, series,)
+    c.execute('INSERT INTO series_lookup VALUES (?, ?)', params)
+    conn.commit()
+    conn.close()
+
+
 def create_channels_table():
     conn = connect_db()
     c = conn.cursor()
@@ -49,12 +91,13 @@ def create_channels_table():
     conn.close()
 
 
-def save_episode_info(series, season, episode, title, subtitle, desc, length, file_name, updated_date):
+def table_exists(table_name):
     conn = connect_db()
     c = conn.cursor()
-
-    params = (series, season, episode, title, subtitle, desc, length, file_name, updated_date)
-    c.execute('INSERT INTO episode_info VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', params)
+    result = c.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", (table_name,))
+    is_exists = False
+    if result.fetchall()[0][0] == 1 :
+        is_exists = True
     conn.commit()
     conn.close()
-
+    return is_exists
