@@ -8,10 +8,17 @@ show_episode_list_path = '/shows/{series_id}/episodes'
 
 
 def show_single_search(name):
+    print("Series search: " + name)
     resp = requests.get(tvmaze_api_url + show_single_search_path + name)
-    return json.loads(json.dumps(resp.json()))
+    json_response = json.loads(json.dumps(resp.json()))
+    print("Response:\n" + str(json_response))
+    return json_response
 
 
 def show_episode_list(show_id):
+    print("Episodes search: " + str(show_id))
     resp = requests.get(tvmaze_api_url + show_episode_list_path.replace('{series_id}', str(show_id)))
-    return json.loads(json.dumps(resp.json()))
+    json_response = json.loads(json.dumps(resp.json()))
+    print("Response:\n" + str(json_response))
+    return json_response
+

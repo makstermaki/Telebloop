@@ -56,18 +56,29 @@ def populate_all_episode_info(directory_full_path):
         db_utils.update_series_last_updated_time(directory_name)
 
 
-# def start_channel(channel_name):
-
+def start_channel(channel_name, order, channel_series_id):
+    channel_result = db_utils.get_channel(channel_name)
+    if channel_result is None:
+        db_utils.save_channel(channel_name, order, channel_series_id)
+        channel_result = {
+            'channel': channel_name,
+            'playbackOrder': order,
+            'seriesID': channel_series_id,
+            'nextEpisode': 0
+        }
+    result = db_utils.get_episodes_in_order(channel_result['seriesID'], channel_result['nextEpisode'])
+    print(result)
 
 
 config = configparser.ConfigParser()
 config.read('config.ini')
 
-# for channel in config.sections():
-#     directory = config.get(channel, "directory")
-#     order = config.get(channel, "order")
-#
-#     populate_all_episode_info(directory)
+for channel in config.sections():
+    directory = config.get(channel, "directory")
+    playback_order = config.get(channel, "order")
 
-result = db_utils.get_episode_info_by_season_episode(1615, 4, 10)
-print(result)
+    directory_series_id = db_utils.get_series_id(os.path.basename(directory))
+
+    populate_all_episode_info(directory)
+    start_channel(channel, playback_order, directory_series_id)
+

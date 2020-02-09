@@ -13,6 +13,8 @@ def initialize_db():
         create_episode_table()
     if table_exists('series_lookup') == 0:
         create_series_lookup_table()
+    if table_exists('channel') == 0:
+        create_channels_table()
 
 
 def create_episode_table():
@@ -76,7 +78,7 @@ def get_episode_info_by_season_episode(series_id, season, episode):
     ''', params)
     row = c.fetchone()
 
-    if row is not None:
+    if not (row is None):
         result = {
             'seriesID': row[0],
             'absoluteOrder': row[1],
@@ -92,6 +94,68 @@ def get_episode_info_by_season_episode(series_id, season, episode):
         result = None
 
     conn.close()
+    return result
+
+
+def get_episode_info_by_absolute_order(series_id, absolute_order):
+    conn = connect_db()
+    c = conn.cursor()
+    params = (series_id, absolute_order)
+    c.execute('''
+        SELECT *
+        FROM episode_info
+        WHERE
+            series_id = ? AND
+            absolute_order = ?
+    ''', params)
+    row = c.fetchone()
+
+    if not (row is None):
+        result = {
+            'seriesID': row[0],
+            'absoluteOrder': row[1],
+            'season': row[2],
+            'episode': row[3],
+            'title': row[4],
+            'subtitle': row[5],
+            'description': row[6],
+            'length': row[7],
+            'filePath': row[8]
+        }
+    else:
+        result = None
+
+    conn.close()
+    return result
+
+
+def get_episodes_in_order(series_id, absolute_order):
+    conn = connect_db()
+    c = conn.cursor()
+    c.execute('''
+        SELECT *
+        FROM episode_info
+        WHERE
+            series_id = ? AND
+            absolute_order >= ?
+        ORDER BY
+            absolute_order asc
+    ''', (series_id, absolute_order))
+    rows = c.fetchall()
+
+    result = []
+    for row in rows:
+        result.append({
+            'seriesID': row[0],
+            'absoluteOrder': row[1],
+            'season': row[2],
+            'episode': row[3],
+            'title': row[4],
+            'subtitle': row[5],
+            'description': row[6],
+            'length': row[7],
+            'filePath': row[8]
+        })
     return result
 
 
@@ -146,7 +210,6 @@ def create_series_lookup_table():
 def save_series_id(series_id, series):
     conn = connect_db()
     c = conn.cursor()
-
     params = (series_id, series,)
     c.execute('INSERT INTO series_lookup (series_id, local_series_name) VALUES (?, ?)', params)
     conn.commit()
@@ -180,7 +243,7 @@ def is_series_metadata_loaded(local_series_name):
     ''', (local_series_name,))
     result = c.fetchone()
     conn.close()
-    if result is None:
+    if result[0] is None:
         return False
     return True
 
@@ -206,7 +269,8 @@ def create_channels_table():
     c.execute('''
             CREATE TABLE channel (
                 channel text,
-                order text,
+                playback_order text,
+                series_id int,
                 next_episode int
             )
         ''')
@@ -214,12 +278,58 @@ def create_channels_table():
     conn.close()
 
 
+def save_channel(channel, order, series_id):
+    conn = connect_db()
+    c = conn.cursor()
+
+    params = (channel, order, series_id)
+    c.execute('''
+        INSERT INTO channel (channel, playback_order, series_id, next_episode)
+        VALUES (?, ?, ?, 0)
+    ''', params)
+    conn.commit()
+    conn.close()
+
+
+def update_channel_next_episode(channel, next_episode):
+    conn = connect_db()
+    c = conn.cursor()
+    c.execute('''
+        UPDATE channel
+        SET next_episode = ?
+        WHERE channel = ?
+    ''', (next_episode, channel))
+    conn.commit()
+    conn.close()
+
+
+def get_channel(channel):
+    conn = connect_db()
+    c = conn.cursor()
+    c.execute('''
+        SELECT *
+        FROM channel
+        WHERE channel = ?
+    ''', (channel, ))
+    result = c.fetchone()
+    conn.commit()
+    conn.close()
+    if not (result is None):
+        return {
+            'channel': result[0],
+            'playbackOrder': result[1],
+            'seriesID': result[2],
+            'nextEpisode': result[3]
+        }
+    return None
+
+
 def table_exists(table_name):
     conn = connect_db()
     c = conn.cursor()
-    result = c.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", (table_name,))
+    c.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", (table_name,))
     is_exists = False
-    if result.fetchall()[0][0] == 1 :
+    if c.fetchall()[0][0] == 1 :
         is_exists = True
     conn.commit()
     conn.close()
