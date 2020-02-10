@@ -1,6 +1,7 @@
 from tendo import singleton
 
 import configparser
+import datetime
 import os
 import re
 import time
@@ -9,6 +10,7 @@ from pprint import pprint
 import common.db_utils as db_utils
 import common.playlist_utils as playlist_utils
 import common.tv_maze as tv_maze
+import common.xmltv as xmltv
 
 # Throw an exception if this script is already running
 me = singleton.SingleInstance()
@@ -64,7 +66,28 @@ def start_channel(channel_name, order, channel_series_id):
             'nextEpisode': 0
         }
     result = db_utils.get_episodes_in_order(channel_result['seriesID'], channel_result['nextEpisode'])
-    print(result)
+
+    xml_tv = xmltv.generate_new_xml()
+    playlist = []
+    runtime = 0
+
+    # The playlist will be generated such that it ends at the specified time.
+    # DEFAULT: 5 AM
+    now = datetime.datetime.now()
+    day_delta = datetime.timedelta(days=1)
+    target = now + day_delta
+
+    target_timestamp = target.replace(hour=5, minute=0, second=0, microsecond=0).timestamp()
+    current_timestamp = now.timestamp()
+
+    # Keep adding to the playlist until it ends past the target timestamp
+    while current_timestamp < target_timestamp:
+
+
+    for episode in result:
+        playlist.append(episode['filePath'])
+        runtime = runtime + episode['length']
+
 
 
 config = configparser.ConfigParser()

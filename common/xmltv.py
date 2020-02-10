@@ -9,6 +9,10 @@ import xml.etree.ElementTree as ET
 # will be kept as is.
 
 
+def generate_new_xml():
+    return ET.Element('tv')
+
+
 # This function removes all programme nodes where the stop time is before the current time
 def remove_past_programmes(root):
     for child in root:
@@ -17,7 +21,6 @@ def remove_past_programmes(root):
             curr_time = int(time.time())
             if curr_time > stop_time:
                 root.remove(child)
-    return root
 
 
 def add_channel(root, channel):
@@ -52,11 +55,3 @@ def add_programme(root, channel, start_time, stop_time, title, subtitle, desc):
     programme_node.append(desc_node)
 
     root.append(programme_node)
-
-
-tree = ET.parse('/Users/andrew/Desktop/xmltv.xml')
-xml_root = tree.getroot()
-remove_past_programmes(xml_root)
-add_channel(xml_root, 'NEW_CHANNEL')
-add_programme(xml_root, 'NEW_CHANNEL', 'START_TIME', 'STOP_TIME', 'TITLE', 'SUBTITLE', 'DESC DESC DESC DESC')
-tree.write('/Users/andrew/Desktop/NEW_xmltv.xml')
