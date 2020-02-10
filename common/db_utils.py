@@ -5,15 +5,15 @@ import time
 
 
 def connect_db():
-    return sqlite3.connect('episode_info.db')
+    return sqlite3.connect('data.db')
 
 
 def initialize_db():
-    if table_exists('episode_info') == 0:
+    if table_exists('episodes') == 0:
         create_episode_table()
-    if table_exists('series_lookup') == 0:
-        create_series_lookup_table()
-    if table_exists('channel') == 0:
+    if table_exists('series') == 0:
+        create_series_table()
+    if table_exists('channels') == 0:
         create_channels_table()
 
 
@@ -22,7 +22,7 @@ def create_episode_table():
     c = conn.cursor()
 
     c.execute('''
-        CREATE TABLE episode_info (
+        CREATE TABLE episodes (
             series_id int,
             absolute_order int,
             season integer,
@@ -38,21 +38,21 @@ def create_episode_table():
     conn.close()
 
 
-def save_tv_maze_episode_info(series_id, season, episode, title, subtitle, desc):
+def save_tv_maze_episode(series_id, season, episode, title, subtitle, desc):
     conn = connect_db()
     c = conn.cursor()
     params = (series_id, season, episode, title, subtitle, desc)
-    c.execute('INSERT INTO episode_info (series_id, season, episode, title, subtitle, description) VALUES (?, ?, ?, ?, ?, ?)', params)
+    c.execute('INSERT INTO episodes (series_id, season, episode, title, subtitle, description) VALUES (?, ?, ?, ?, ?, ?)', params)
     conn.commit()
     conn.close()
 
 
-def save_local_episode_info(series_id, season, episode, length, file_path):
+def save_local_episode(series_id, season, episode, length, file_path):
     conn = connect_db()
     c = conn.cursor()
     params = (length, file_path, series_id, season, episode,)
     c.execute('''
-        UPDATE episode_info
+        UPDATE episodes
         SET length = ?,
             file_path = ?
         WHERE
@@ -64,13 +64,13 @@ def save_local_episode_info(series_id, season, episode, length, file_path):
     conn.close()
 
 
-def get_episode_info_by_season_episode(series_id, season, episode):
+def get_episode_by_season_episode(series_id, season, episode):
     conn = connect_db()
     c = conn.cursor()
     params = (series_id, season, episode)
     c.execute('''
         SELECT *
-        FROM episode_info
+        FROM episodes
         WHERE
             series_id = ? AND
             season = ? AND
@@ -97,13 +97,13 @@ def get_episode_info_by_season_episode(series_id, season, episode):
     return result
 
 
-def get_episode_info_by_absolute_order(series_id, absolute_order):
+def get_episode_by_absolute_order(series_id, absolute_order):
     conn = connect_db()
     c = conn.cursor()
     params = (series_id, absolute_order)
     c.execute('''
         SELECT *
-        FROM episode_info
+        FROM episodes
         WHERE
             series_id = ? AND
             absolute_order = ?
@@ -134,7 +134,7 @@ def get_episodes_in_order(series_id, absolute_order):
     c = conn.cursor()
     c.execute('''
         SELECT *
-        FROM episode_info
+        FROM episodes
         WHERE
             series_id = ? AND
             absolute_order >= ?
@@ -167,7 +167,7 @@ def populate_series_absolute_order(series_id):
 
     c.execute('''
         SELECT season, episode
-        FROM episode_info
+        FROM episodes
         WHERE series_id = ?
         ORDER BY season ASC, episode ASC
     ''', (series_id,))
@@ -178,7 +178,7 @@ def populate_series_absolute_order(series_id):
         params = (counter, series_id, row[0], row[1],)
         print("Counter: " + str(counter) + ", Series ID: " + str(series_id) + ", Season: " + str(row[0]) + ', Episode: ' + str(row[1]))
         c.execute('''
-            UPDATE episode_info
+            UPDATE episodes
             SET absolute_order = ?
             WHERE
                 series_id = ? AND
@@ -191,13 +191,13 @@ def populate_series_absolute_order(series_id):
     conn.close()
 
 
-def create_series_lookup_table():
+def create_series_table():
     conn = connect_db()
     c = conn.cursor()
 
     # The local series name field is the series name as found in the video files
     c.execute('''
-                CREATE TABLE series_lookup (
+                CREATE TABLE series (
                     series_id int,
                     local_series_name text,
                     last_updated_date int
@@ -211,7 +211,7 @@ def save_series_id(series_id, series):
     conn = connect_db()
     c = conn.cursor()
     params = (series_id, series,)
-    c.execute('INSERT INTO series_lookup (series_id, local_series_name) VALUES (?, ?)', params)
+    c.execute('INSERT INTO series (series_id, local_series_name) VALUES (?, ?)', params)
     conn.commit()
     conn.close()
 
@@ -220,7 +220,7 @@ def save_series_id(series_id, series):
 def get_series_id(local_series_name):
     conn = connect_db()
     c = conn.cursor()
-    result = c.execute('SELECT series_id FROM series_lookup WHERE local_series_name = ?', (local_series_name,))
+    result = c.execute('SELECT series_id FROM series WHERE local_series_name = ?', (local_series_name,))
     rows = result.fetchall()
     conn.close()
     if len(rows) == 1:
@@ -238,7 +238,7 @@ def is_series_metadata_loaded(local_series_name):
     c = conn.cursor()
     c.execute('''
         SELECT last_updated_date
-        FROM series_lookup
+        FROM series
         WHERE local_series_name = ?
     ''', (local_series_name,))
     result = c.fetchone()
@@ -252,7 +252,7 @@ def update_series_last_updated_time(local_series_name):
     conn = connect_db()
     c = conn.cursor()
     c.execute('''
-        UPDATE series_lookup
+        UPDATE series
         SET last_updated_date = ?
         WHERE local_series_name = ?
     ''', (time.time(), local_series_name,))
@@ -267,7 +267,7 @@ def create_channels_table():
 # Channel type is sequential or random
 # Next episode season and num will be the next episode to start streaming from. (Remember, attempt to only create streams for 24 hr intervals)
     c.execute('''
-            CREATE TABLE channel (
+            CREATE TABLE channels (
                 channel text,
                 playback_order text,
                 series_id int,
@@ -284,7 +284,7 @@ def save_channel(channel, order, series_id):
 
     params = (channel, order, series_id)
     c.execute('''
-        INSERT INTO channel (channel, playback_order, series_id, next_episode)
+        INSERT INTO channels (channel, playback_order, series_id, next_episode)
         VALUES (?, ?, ?, 0)
     ''', params)
     conn.commit()
@@ -295,7 +295,7 @@ def update_channel_next_episode(channel, next_episode):
     conn = connect_db()
     c = conn.cursor()
     c.execute('''
-        UPDATE channel
+        UPDATE channels
         SET next_episode = ?
         WHERE channel = ?
     ''', (next_episode, channel))
@@ -308,7 +308,7 @@ def get_channel(channel):
     c = conn.cursor()
     c.execute('''
         SELECT *
-        FROM channel
+        FROM channels
         WHERE channel = ?
     ''', (channel, ))
     result = c.fetchone()
@@ -331,6 +331,5 @@ def table_exists(table_name):
     is_exists = False
     if c.fetchall()[0][0] == 1 :
         is_exists = True
-    conn.commit()
     conn.close()
     return is_exists

@@ -15,9 +15,6 @@ me = singleton.SingleInstance()
 
 db_utils.initialize_db()
 
-# input_directory = '/media/TV/Steven Universe'
-input_directory = '/Volumes/TV Channels/Steven Universe'
-
 
 # Given a show name, this function will populate the SQLite DB with all of the episode information
 # for that show
@@ -32,8 +29,8 @@ def populate_tv_maze_episode_info(show_name):
         else:
             description = ''
 
-        db_utils.save_tv_maze_episode_info(series_id, curr['season'], curr['number'], curr['name'],
-                                           episode_subtitle, description)
+        db_utils.save_tv_maze_episode(series_id, curr['season'], curr['number'], curr['name'],
+                                      episode_subtitle, description)
     db_utils.populate_series_absolute_order(series_id)
 
 
@@ -45,7 +42,7 @@ def populate_episode_lengths(directory_full_path):
         file_name = os.path.basename(file_full_path)
         length = playlist_utils.get_video_length(file_full_path)
         season, episode = playlist_utils.parse_season_episode(os.path.basename(file_name))
-        db_utils.save_local_episode_info(series_id, season, episode, length, file_full_path)
+        db_utils.save_local_episode(series_id, season, episode, length, file_full_path)
 
 
 def populate_all_episode_info(directory_full_path):
