@@ -3,6 +3,23 @@ import re
 import subprocess
 
 
+def generate_concat_playlist(files, playlist_directory, channel_name):
+    target_file_path = playlist_directory
+    if not target_file_path.endswith('/'):
+        target_file_path = target_file_path + '/'
+    target_file_path = target_file_path + channel_name + '.txt'
+    escaped_files = escape_special_chars(files)
+
+    # If a playlist already exists, delete it so a new one can be created
+    if os.path.exists(target_file_path):
+        os.remove(target_file_path)
+
+    target_file = open(target_file_path, "w")
+    for file in escaped_files:
+        target_file.write("file '" + file + "'\n")
+    target_file.close()
+
+
 # Returns a list of all files with full paths in a given directory
 def list_files_with_path(directory):
     result = []

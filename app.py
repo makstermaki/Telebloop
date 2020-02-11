@@ -55,7 +55,7 @@ def populate_all_episode_info(directory_full_path):
         db_utils.update_series_last_updated_time(directory_name)
 
 
-def start_channel(channel_name, order, channel_series_id, xmltv_file):
+def start_channel(channel_name, order, channel_series_id, playlist_dir, xmltv_file):
     channel_result = db_utils.get_channel(channel_name)
     if channel_result is None:
         db_utils.save_channel(channel_name, order, channel_series_id)
@@ -85,9 +85,6 @@ def start_channel(channel_name, order, channel_series_id, xmltv_file):
     while current_timestamp < target_timestamp:
 
         for episode in db_episodes:
-
-            print(episode)
-
             playlist.append(episode['filePath'])
 
             time_format = '%Y%m%d%H%M%S %z'
@@ -108,13 +105,13 @@ def start_channel(channel_name, order, channel_series_id, xmltv_file):
         # episodes in the series starting from absolute order zero and continue adding
         # to the playlist from there
         if current_timestamp < target_timestamp:
-            result = db_utils.get_episodes_in_order(channel_result['seriesID'], 0)
+            db_episodes = db_utils.get_episodes_in_order(channel_result['seriesID'], 0)
 
     # Update the next episode to play for the channel for the next run
     db_utils.update_channel_next_episode(channel_name, last_episode_in_playlist + 1)
 
     # At this point, the playlist is complete along with the XML TV
-    print(playlist)
+    playlist_utils.generate_concat_playlist(playlist, playlist_dir, channel_name)
 
 
 config = configparser.ConfigParser()
@@ -123,10 +120,11 @@ config.read('config.ini')
 # Retrieve already existing XML TV file or generate a new one
 xmltv_path = config.get('GENERAL', 'xmltv_path')
 if os.path.exists(xmltv_path):
-    xmltv_file = xmltv.open_xmltv(xmltv_path)
+    file_xmltv = xmltv.open_xmltv(xmltv_path)
 else:
-    xmltv_file = xmltv.generate_new_xmltv()
+    file_xmltv = xmltv.generate_new_xmltv()
 
+playlist_directory = config.get('GENERAL', 'playlist_directory')
 
 for channel in config.sections():
     if channel == 'GENERAL':
@@ -138,7 +136,7 @@ for channel in config.sections():
     directory_series_id = db_utils.get_series_id(os.path.basename(directory))
 
     populate_all_episode_info(directory)
-    start_channel(channel, playback_order, directory_series_id, xmltv_file)
+    start_channel(channel, playback_order, directory_series_id, playlist_directory, file_xmltv)
 
-xmltv.remove_past_programmes(xmltv_file)
-xmltv.save_to_file(xmltv_file, xmltv_path)
+xmltv.remove_past_programmes(file_xmltv)
+xmltv.save_to_file(file_xmltv, xmltv_path)

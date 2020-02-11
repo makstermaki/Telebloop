@@ -177,7 +177,6 @@ def populate_series_absolute_order(series_id):
     counter = 0
     for row in rows:
         params = (counter, series_id, row[0], row[1],)
-        print("Counter: " + str(counter) + ", Series ID: " + str(series_id) + ", Season: " + str(row[0]) + ', Episode: ' + str(row[1]))
         c.execute('''
             UPDATE episodes
             SET absolute_order = ?
