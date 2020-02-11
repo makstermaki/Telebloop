@@ -137,7 +137,8 @@ def get_episodes_in_order(series_id, absolute_order):
         FROM episodes
         WHERE
             series_id = ? AND
-            absolute_order >= ?
+            absolute_order >= ? AND
+            file_path IS NOT NULL
         ORDER BY
             absolute_order asc
     ''', (series_id, absolute_order))
