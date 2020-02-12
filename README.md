@@ -1,5 +1,5 @@
-# Home Broadcaster
-*Name up for revision*
+# Home Broadcaster - PLACEHOLDER
+*Name To Be Determined*
 
 This application is for hosting your own IPTV service at home. The application takes a list of
 video files as an input and will create a continuous stream that runs 24/7.
