@@ -4,6 +4,9 @@ import subprocess
 
 
 def generate_concat_playlist(files, playlist_directory, channel_name):
+    if not os.path.exists(playlist_directory):
+        os.mkdir(playlist_directory)
+
     target_file_path = playlist_directory
     if not target_file_path.endswith('/'):
         target_file_path = target_file_path + '/'
