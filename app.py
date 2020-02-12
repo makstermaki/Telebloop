@@ -2,8 +2,10 @@ from tendo import singleton
 
 import configparser
 import datetime
+import glob
 import os
 import re
+import subprocess
 import time
 from pprint import pprint
 
@@ -16,6 +18,28 @@ import common.xmltv as xmltv
 me = singleton.SingleInstance()
 
 db_utils.initialize_db()
+
+
+def check_pid_running(pid):
+    try:
+        os.kill(int(pid), 0)
+    except OSError:
+        return False
+    else:
+        return True
+
+
+def clear_previous_stream_files(channel_name, stream_dir, playlist_dir):
+    file_list = glob.glob(stream_dir + channel_name + '*')
+    for file in file_list:
+        try:
+            os.remove(file)
+        except:
+            print("Error occurred while deleting file: ", file)
+    try:
+        os.remove(playlist_dir + channel_name + ".txt")
+    except:
+        print("Error occurred while deleting FFMPEG concat playlist: " + playlist_dir + channel_name + ".txt")
 
 
 # Given a show name, this function will populate the SQLite DB with all of the episode information
@@ -55,7 +79,7 @@ def populate_all_episode_info(directory_full_path):
         db_utils.update_series_last_updated_time(directory_name)
 
 
-def start_channel(channel_name, order, channel_series_id, playlist_dir, xmltv_file):
+def start_channel(channel_name, order, channel_series_id, playlist_dir, stream_dir, xmltv_file, ffmpeg_log_file):
     channel_result = db_utils.get_channel(channel_name)
     if channel_result is None:
         db_utils.save_channel(channel_name, order, channel_series_id)
@@ -110,8 +134,22 @@ def start_channel(channel_name, order, channel_series_id, playlist_dir, xmltv_fi
     # Update the next episode to play for the channel for the next run
     db_utils.update_channel_next_episode(channel_name, last_episode_in_playlist + 1)
 
-    # At this point, the playlist is complete along with the XML TV
-    playlist_utils.generate_concat_playlist(playlist, playlist_dir, channel_name)
+    # Generate the FFMPEG concat playlist
+    concat_playlist = playlist_utils.generate_concat_playlist(playlist, playlist_dir, channel_name)
+
+    # At this point, the FFMPEG playlist has been generated so the stream can be started
+    if not os.path.exists("./pid"):
+        os.mkdir("./pid")
+
+    proc = subprocess.Popen([
+        "ffmpeg", "-re", "-loglevel", "warning", "-fflags", "+genpts", "-f", "concat", "-safe", "0", "-i",
+        concat_playlist, "-map", "0:a?", "-map", "0:v?", "-strict", "-2", "-dn", "-c", "copy",
+        "-hls_time", "10", "-hls_list_size", "6", "-hls_wrap", "7", stream_dir + channel_name + ".m3u8"
+    ], stderr=ffmpeg_log_file)
+
+    pid_file = open("./pid/" + channel_name + ".pid", "w")
+    pid_file.write(str(proc.pid))
+    pid_file.close()
 
 
 config = configparser.ConfigParser()
@@ -125,10 +163,29 @@ else:
     file_xmltv = xmltv.generate_new_xmltv()
 
 playlist_directory = config.get('GENERAL', 'playlist_directory')
+stream_directory = config.get('GENERAL', 'stream_directory')
+ffmpeg_log_path = config.get('GENERAL', 'ffmpeg_log')
+ffmpeg_log_file = open(ffmpeg_log_path, "w")
 
 for channel in config.sections():
     if channel == 'GENERAL':
         continue
+
+    # Check if the channel is currently running and if so, do nothing
+    pid_file_path = './pid/' + channel + '.pid'
+    if os.path.exists(pid_file_path):
+        old_pid_file = open(pid_file_path)
+        ffmpeg_pid = old_pid_file.readline().strip()
+        if check_pid_running(ffmpeg_pid):
+            # If the channel is already running, nothing needs to be done
+            print(channel + " already running...")
+            continue
+        else:
+            # Channel stopped running. Clear the old stream files
+            print("Deleting old stream files...")
+            clear_previous_stream_files(channel, stream_directory, playlist_directory)
+
+    print("Starting channel: " + channel)
 
     directory = config.get(channel, "directory")
     playback_order = config.get(channel, "order")
@@ -136,7 +193,8 @@ for channel in config.sections():
     directory_series_id = db_utils.get_series_id(os.path.basename(directory))
 
     populate_all_episode_info(directory)
-    start_channel(channel, playback_order, directory_series_id, playlist_directory, file_xmltv)
+    start_channel(channel, playback_order, directory_series_id, playlist_directory,
+                  stream_directory, file_xmltv, ffmpeg_log_file)
 
 xmltv.remove_past_programmes(file_xmltv)
 xmltv.save_to_file(file_xmltv, xmltv_path)

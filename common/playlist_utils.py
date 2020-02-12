@@ -18,6 +18,7 @@ def generate_concat_playlist(files, playlist_directory, channel_name):
     for file in escaped_files:
         target_file.write("file '" + file + "'\n")
     target_file.close()
+    return target_file_path
 
 
 # Returns a list of all files with full paths in a given directory
