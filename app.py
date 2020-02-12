@@ -10,6 +10,7 @@ import time
 from pprint import pprint
 
 import common.db_utils as db_utils
+import common.m3u as m3u
 import common.playlist_utils as playlist_utils
 import common.tv_maze as tv_maze
 import common.xmltv as xmltv
@@ -79,7 +80,7 @@ def populate_all_episode_info(directory_full_path):
         db_utils.update_series_last_updated_time(directory_name)
 
 
-def start_channel(channel_name, order, channel_series_id, playlist_dir, stream_dir, xmltv_file, ffmpeg_log_file):
+def start_channel(channel_name, order, channel_series_id, playlist_dir, stream_dir, xmltv_file, ffmpeg_log):
     channel_result = db_utils.get_channel(channel_name)
     if channel_result is None:
         db_utils.save_channel(channel_name, order, channel_series_id)
@@ -145,11 +146,14 @@ def start_channel(channel_name, order, channel_series_id, playlist_dir, stream_d
         "ffmpeg", "-re", "-loglevel", "warning", "-fflags", "+genpts", "-f", "concat", "-safe", "0", "-i",
         concat_playlist, "-map", "0:a?", "-map", "0:v?", "-strict", "-2", "-dn", "-c", "copy",
         "-hls_time", "10", "-hls_list_size", "6", "-hls_wrap", "7", stream_dir + channel_name + ".m3u8"
-    ], stderr=ffmpeg_log_file)
+    ], stderr=ffmpeg_log)
 
     pid_file = open("./pid/" + channel_name + ".pid", "w")
     pid_file.write(str(proc.pid))
     pid_file.close()
+
+    # Add the channel to the central streams playlist
+    m3u.add_channel_if_not_exists(stream_dir, channel_name)
 
 
 config = configparser.ConfigParser()
