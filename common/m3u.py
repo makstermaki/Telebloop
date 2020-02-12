@@ -25,5 +25,5 @@ def add_channel_if_not_exists(m3u_dir, channel):
     target_m3u.write('#EXTINF:-1 tvg-ID=' + channel + '.tv' + ' tvg-name=' + channel + ' tvg-logo= group-title=,' + channel + '\n')
 
     host_ip = socket.gethostbyname(socket.gethostname())
-    target_m3u.write('http://192.168.1.79/tv/' + channel + '.m3u8')
+    target_m3u.write('http://192.168.1.79/tv/' + channel + '.m3u8') # TODO Must dynamically generate the IP address
     target_m3u.close()
