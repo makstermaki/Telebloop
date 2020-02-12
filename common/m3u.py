@@ -22,7 +22,7 @@ def add_channel_if_not_exists(m3u_dir, channel):
             print("Channel already exists in playlist...")
             return
     target_m3u = open(target_m3u_path, "a")
-    target_m3u.write('#EXTINF:-1 tvg-ID=' + channel + ' tvg-name=' + channel + ' tvg-logo= group-title=,' + channel + '\n')
+    target_m3u.write('#EXTINF:-1 tvg-ID=' + channel + '.tv' + ' tvg-name=' + channel + ' tvg-logo= group-title=,' + channel + '\n')
 
     host_ip = socket.gethostbyname(socket.gethostname())
     target_m3u.write('http://' + host_ip + '/streams/' + channel + '.m3u8')
