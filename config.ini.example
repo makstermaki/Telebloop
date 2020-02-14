@@ -1,0 +1,10 @@
+[GENERAL]
+working_directory=/home/HomeBroadcaster
+stream_directory=/var/www/html/tv
+log_level=DEBUG
+
+[CHANNEL_ONE]
+directory=/media/folder/location
+
+[CHANNEL_TWO]
+directory=/other/media/folder/location
