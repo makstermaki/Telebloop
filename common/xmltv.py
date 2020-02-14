@@ -21,12 +21,28 @@ def open_xmltv(xmltv_path):
 
 # This function removes all programme nodes where the stop time is before the current time
 def remove_past_programmes(root):
+    children_to_remove = []
     for child in root:
         if child.tag == 'programme':
             stop_time = parse(child.attrib['stop'], fuzzy=True).timestamp()
             curr_time = int(time.time())
             if curr_time > stop_time:
-                root.remove(child)
+                children_to_remove.append(child)
+    for child in children_to_remove:
+        root.remove(child)
+
+
+def remove_channel_programmes(channel, root):
+    children_to_remove = []
+    for child in root:
+        if child.tag == 'programme':
+            print("  ATTRIB: " + child.attrib['channel'])
+        if (child.tag == 'programme' and
+                child.attrib['channel'] == (channel + '.tv')):
+            print('DELETED start time: ' + str(child.attrib['start']))
+            children_to_remove.append(child)
+    for child in children_to_remove:
+        root.remove(child)
 
 
 def add_channel_if_not_exists(root, channel):

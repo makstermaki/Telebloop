@@ -262,6 +262,7 @@ for channel in config.sections():
     directory_series_id = db_utils.get_series_id(os.path.basename(directory))
 
     populate_all_episode_info(directory)
+    xmltv.remove_channel_programmes(channel, file_xmltv)
     start_channel(channel, playback_order, directory_series_id, file_xmltv, directories)
 
 xmltv.remove_past_programmes(file_xmltv)
