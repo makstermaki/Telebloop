@@ -71,7 +71,7 @@ def populate_tv_maze_episode_info(show_name, db_dir):
     for curr in episodes_api_response:
         episode_subtitle = 'S' + str(curr['season']) + 'E' + str(curr['number'])
         if not (curr['summary'] is None):
-            description = curr['summary'].replace('<p>', '').replace('</p>', '')
+            description = curr['summary'].replace('<p>', '').replace('</p>', '').replace('<i>', '').replace('</i>', '')
         else:
             description = ''
 
