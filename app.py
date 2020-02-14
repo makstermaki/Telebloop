@@ -3,6 +3,8 @@ from tendo import singleton
 import configparser
 import datetime
 import glob
+import logging
+import logging.handlers
 import os
 import subprocess
 import sys
@@ -25,6 +27,16 @@ default_stream_dir = '/var/www/html/tv'
 logs_subdir = 'logs/'
 playlist_subdir = 'playlists/'
 pid_subdir = 'pid/'
+
+
+def setup_logger(log_level, log_dir):
+    log_location = log_directory + 'homeBroadcaster.log'
+    log_handler = logging.handlers.RotatingFileHandler(filename=log_location, maxBytes=20_000, backupCount=5)
+    formatter = logging.Formatter(fmt='[%(asctime)s] %(levelname)s - %(filename)s %(funcName)s: %(message)s')
+    log_handler.setFormatter(formatter)
+    logger = logging.getLogger()
+    logger.addHandler(log_handler)
+    logger.setLevel(log_level)
 
 
 def check_pid_running(pid):
@@ -149,14 +161,14 @@ def start_channel(channel_name, order, channel_series_id, xmltv_file, dirs):
     if not os.path.exists("./pid"):
         os.mkdir("./pid")
 
-    ffmpeg_log_file = open(dirs['log_dir'] + 'ffmpeg.log', "w")
     m3u8_path = dirs['stream_dir'] + channel_name + '.m3u8'
 
-    proc = subprocess.Popen([
-        "ffmpeg", "-re", "-loglevel", "warning", "-fflags", "+genpts", "-f", "concat", "-safe", "0", "-i",
-        concat_playlist, "-map", "0:a?", "-map", "0:v?", "-strict", "-2", "-dn", "-c", "copy",
-        "-hls_time", "10", "-hls_list_size", "6", "-hls_wrap", "7", m3u8_path
-    ], stderr=ffmpeg_log_file)
+    with open(dirs['log_dir'] + 'ffmpeg.log', "w") as ffmpeg_log_file:
+        proc = subprocess.Popen([
+            "ffmpeg", "-re", "-loglevel", "warning", "-fflags", "+genpts", "-f", "concat", "-safe", "0", "-i",
+            concat_playlist, "-map", "0:a?", "-map", "0:v?", "-strict", "-2", "-dn", "-c", "copy",
+            "-hls_time", "10", "-hls_list_size", "6", "-hls_wrap", "7", m3u8_path
+        ], stderr=ffmpeg_log_file)
 
     pid_file = open(dirs['pid_dir'] + channel_name + ".pid", "w")
     pid_file.write(str(proc.pid))
@@ -219,6 +231,11 @@ else:
     else:
         file_xmltv = xmltv.generate_new_xmltv()
 
+if config.has_option('GENERAL', 'log_level'):
+    logging_level = logging.getLevelName(config.get('GENERAL', 'log_level'))
+else:
+    logging_level = logging.INFO
+
 # Create a dictionary for all of the working directories
 directories = {
     'working_dir': working_directory,
@@ -228,9 +245,12 @@ directories = {
     'log_dir': log_directory
 }
 
+setup_logger(logging_level, directories['log_dir'])
 db_utils.initialize_db(directories['working_dir'])
 
 # All input parameters have now been processed and the channels can now be started
+
+logging.info("Starting the Home Broadcaster application...")
 
 for channel in config.sections():
     if channel == 'GENERAL':
@@ -243,14 +263,13 @@ for channel in config.sections():
         ffmpeg_pid = old_pid_file.readline().strip()
         if check_pid_running(ffmpeg_pid):
             # If the channel is already running, nothing needs to be done
-            print(channel + " already running...")
+            logging.debug(channel + ' already running, skipping...')
             continue
         else:
             # Channel stopped running. Clear the old stream files
-            print("Deleting old stream files...")
             clear_previous_stream_files(channel, directories['stream_dir'], directories['playlist_dir'])
 
-    print("Starting channel: " + channel)
+    logging.debug("Attempting to start channel: " + channel)
 
     directory = config.get(channel, "directory")
     playback_order = config.get(channel, "order")
@@ -260,6 +279,8 @@ for channel in config.sections():
     populate_all_episode_info(directory, directories)
     xmltv.remove_channel_programmes(channel, file_xmltv)
     start_channel(channel, playback_order, directory_series_id, file_xmltv, directories)
+
+    logging.debug("Finished starting channel: " + channel)
 
 xmltv.remove_past_programmes(file_xmltv)
 xmltv.save_to_file(file_xmltv, xmltv_path)
