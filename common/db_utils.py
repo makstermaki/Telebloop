@@ -4,21 +4,21 @@ import sqlite3
 import time
 
 
-def connect_db():
-    return sqlite3.connect('data.db')
+def connect_db(db_dir):
+    return sqlite3.connect(db_dir + 'data.db')
 
 
-def initialize_db():
-    if table_exists('episodes') == 0:
-        create_episode_table()
-    if table_exists('series') == 0:
-        create_series_table()
-    if table_exists('channels') == 0:
-        create_channels_table()
+def initialize_db(db_dir):
+    if table_exists('episodes', db_dir) == 0:
+        create_episode_table(db_dir)
+    if table_exists('series', db_dir) == 0:
+        create_series_table(db_dir)
+    if table_exists('channels', db_dir) == 0:
+        create_channels_table(db_dir)
 
 
-def create_episode_table():
-    conn = connect_db()
+def create_episode_table(db_dir):
+    conn = connect_db(db_dir)
     c = conn.cursor()
 
     c.execute('''
@@ -38,8 +38,8 @@ def create_episode_table():
     conn.close()
 
 
-def save_tv_maze_episode(series_id, season, episode, title, subtitle, desc):
-    conn = connect_db()
+def save_tv_maze_episode(series_id, season, episode, title, subtitle, desc, db_dir):
+    conn = connect_db(db_dir)
     c = conn.cursor()
     params = (series_id, season, episode, title, subtitle, desc)
     c.execute('INSERT INTO episodes (series_id, season, episode, title, subtitle, description) VALUES (?, ?, ?, ?, ?, ?)', params)
@@ -47,8 +47,8 @@ def save_tv_maze_episode(series_id, season, episode, title, subtitle, desc):
     conn.close()
 
 
-def save_local_episode(series_id, season, episode, length, file_path):
-    conn = connect_db()
+def save_local_episode(series_id, season, episode, length, file_path, db_dir):
+    conn = connect_db(db_dir)
     c = conn.cursor()
     params = (length, file_path, series_id, season, episode,)
     c.execute('''
@@ -64,8 +64,8 @@ def save_local_episode(series_id, season, episode, length, file_path):
     conn.close()
 
 
-def get_episode_by_season_episode(series_id, season, episode):
-    conn = connect_db()
+def get_episode_by_season_episode(series_id, season, episode, db_dir):
+    conn = connect_db(db_dir)
     c = conn.cursor()
     params = (series_id, season, episode)
     c.execute('''
@@ -97,8 +97,8 @@ def get_episode_by_season_episode(series_id, season, episode):
     return result
 
 
-def get_episode_by_absolute_order(series_id, absolute_order):
-    conn = connect_db()
+def get_episode_by_absolute_order(series_id, absolute_order, db_dir):
+    conn = connect_db(db_dir)
     c = conn.cursor()
     params = (series_id, absolute_order)
     c.execute('''
@@ -129,8 +129,8 @@ def get_episode_by_absolute_order(series_id, absolute_order):
     return result
 
 
-def get_episodes_in_order(series_id, absolute_order):
-    conn = connect_db()
+def get_episodes_in_order(series_id, absolute_order, db_dir):
+    conn = connect_db(db_dir)
     c = conn.cursor()
     c.execute('''
         SELECT *
@@ -162,8 +162,8 @@ def get_episodes_in_order(series_id, absolute_order):
 
 # This function will populate the absolute order column for all episodes in a given series.
 # This order will be used to determine playback order for an in order series
-def populate_series_absolute_order(series_id):
-    conn = connect_db()
+def populate_series_absolute_order(series_id, db_dir):
+    conn = connect_db(db_dir)
     c = conn.cursor()
 
     c.execute('''
@@ -191,8 +191,8 @@ def populate_series_absolute_order(series_id):
     conn.close()
 
 
-def create_series_table():
-    conn = connect_db()
+def create_series_table(db_dir):
+    conn = connect_db(db_dir)
     c = conn.cursor()
 
     # The local series name field is the series name as found in the video files
@@ -207,8 +207,8 @@ def create_series_table():
     conn.close()
 
 
-def save_series_id(series_id, series):
-    conn = connect_db()
+def save_series_id(series_id, series, db_dir):
+    conn = connect_db(db_dir)
     c = conn.cursor()
     params = (series_id, series,)
     c.execute('INSERT INTO series (series_id, local_series_name) VALUES (?, ?)', params)
@@ -217,8 +217,8 @@ def save_series_id(series_id, series):
 
 
 # Retrieves the TV Maze series ID for a show.
-def get_series_id(local_series_name):
-    conn = connect_db()
+def get_series_id(local_series_name, db_dir):
+    conn = connect_db(db_dir)
     c = conn.cursor()
     result = c.execute('SELECT series_id FROM series WHERE local_series_name = ?', (local_series_name,))
     rows = result.fetchall()
@@ -229,12 +229,12 @@ def get_series_id(local_series_name):
     # DB doesn't have the series ID so populate it from the TV Maze API
     show_single_search_response = tv_maze.show_single_search(local_series_name)
     series_id = show_single_search_response['id']
-    save_series_id(series_id, local_series_name)
+    save_series_id(series_id, local_series_name, db_dir)
     return series_id
 
 
-def is_series_metadata_loaded(local_series_name):
-    conn = connect_db()
+def is_series_metadata_loaded(local_series_name, db_dir):
+    conn = connect_db(db_dir)
     c = conn.cursor()
     c.execute('''
         SELECT last_updated_date
@@ -248,8 +248,8 @@ def is_series_metadata_loaded(local_series_name):
     return True
 
 
-def update_series_last_updated_time(local_series_name):
-    conn = connect_db()
+def update_series_last_updated_time(local_series_name, db_dir):
+    conn = connect_db(db_dir)
     c = conn.cursor()
     c.execute('''
         UPDATE series
@@ -260,8 +260,8 @@ def update_series_last_updated_time(local_series_name):
     conn.close()
 
 
-def create_channels_table():
-    conn = connect_db()
+def create_channels_table(db_dir):
+    conn = connect_db(db_dir)
     c = conn.cursor()
 
 # Channel type is sequential or random
@@ -278,8 +278,8 @@ def create_channels_table():
     conn.close()
 
 
-def save_channel(channel, order, series_id):
-    conn = connect_db()
+def save_channel(channel, order, series_id, db_dir):
+    conn = connect_db(db_dir)
     c = conn.cursor()
 
     params = (channel, order, series_id)
@@ -291,8 +291,8 @@ def save_channel(channel, order, series_id):
     conn.close()
 
 
-def update_channel_next_episode(channel, next_episode):
-    conn = connect_db()
+def update_channel_next_episode(channel, next_episode, db_dir):
+    conn = connect_db(db_dir)
     c = conn.cursor()
     c.execute('''
         UPDATE channels
@@ -303,8 +303,8 @@ def update_channel_next_episode(channel, next_episode):
     conn.close()
 
 
-def get_channel(channel):
-    conn = connect_db()
+def get_channel(channel, db_dir):
+    conn = connect_db(db_dir)
     c = conn.cursor()
     c.execute('''
         SELECT *
@@ -324,12 +324,12 @@ def get_channel(channel):
     return None
 
 
-def table_exists(table_name):
-    conn = connect_db()
+def table_exists(table_name, db_dir):
+    conn = connect_db(db_dir)
     c = conn.cursor()
     c.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", (table_name,))
     is_exists = False
-    if c.fetchall()[0][0] == 1 :
+    if c.fetchall()[0][0] == 1:
         is_exists = True
     conn.close()
     return is_exists

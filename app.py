@@ -7,7 +7,6 @@ import os
 import subprocess
 import sys
 import time
-from pprint import pprint
 
 import common.db_utils as db_utils
 import common.m3u as m3u
@@ -26,8 +25,6 @@ default_stream_dir = '/var/www/html/tv'
 logs_subdir = 'logs/'
 playlist_subdir = 'playlists/'
 pid_subdir = 'pid/'
-
-db_utils.initialize_db()
 
 
 def check_pid_running(pid):
@@ -48,18 +45,15 @@ def clean_directory_path(path):
 def clear_previous_stream_files(channel_name, stream_dir, playlist_dir):
     file_list = glob.glob(stream_dir + channel_name + '*')
     for file in file_list:
-        try:
-            os.remove(file)
-        except:
-            print("Error occurred while deleting file: ", file)
+        os.remove(file)
     if os.path.exists(playlist_dir + channel_name + ".txt"):
         os.remove(playlist_dir + channel_name + ".txt")
 
 
 # Given a show name, this function will populate the SQLite DB with all of the episode information
 # for that show
-def populate_tv_maze_episode_info(show_name):
-    series_id = db_utils.get_series_id(show_name)
+def populate_tv_maze_episode_info(show_name, db_dir):
+    series_id = db_utils.get_series_id(show_name, db_dir)
 
     episodes_api_response = tv_maze.show_episode_list(series_id)
     for curr in episodes_api_response:
@@ -70,33 +64,33 @@ def populate_tv_maze_episode_info(show_name):
             description = ''
 
         db_utils.save_tv_maze_episode(series_id, curr['season'], curr['number'], curr['name'],
-                                      episode_subtitle, description)
-    db_utils.populate_series_absolute_order(series_id)
+                                      episode_subtitle, description, db_dir)
+    db_utils.populate_series_absolute_order(series_id, db_dir)
 
 
-def populate_episode_lengths(directory_full_path):
+def populate_episode_lengths(directory_full_path, db_dir):
     series_directory_name = os.path.basename(directory_full_path)
-    series_id = db_utils.get_series_id(series_directory_name)
+    series_id = db_utils.get_series_id(series_directory_name, db_dir)
     file_list = playlist_utils.list_files_with_path(directory_full_path)
     for file_full_path in file_list:
         file_name = os.path.basename(file_full_path)
         length = playlist_utils.get_video_length(file_full_path)
         season, episode = playlist_utils.parse_season_episode(os.path.basename(file_name))
-        db_utils.save_local_episode(series_id, season, episode, length, file_full_path)
+        db_utils.save_local_episode(series_id, season, episode, length, file_full_path, db_dir)
 
 
-def populate_all_episode_info(directory_full_path):
+def populate_all_episode_info(directory_full_path, dirs):
     directory_name = os.path.basename(directory_full_path)
-    if not db_utils.is_series_metadata_loaded(directory_name):
-        populate_tv_maze_episode_info(directory_name)
-        populate_episode_lengths(directory_full_path)
-        db_utils.update_series_last_updated_time(directory_name)
+    if not db_utils.is_series_metadata_loaded(directory_name, dirs['working_dir']):
+        populate_tv_maze_episode_info(directory_name, dirs['working_dir'])
+        populate_episode_lengths(directory_full_path, dirs['working_dir'])
+        db_utils.update_series_last_updated_time(directory_name, dirs['working_dir'])
 
 
 def start_channel(channel_name, order, channel_series_id, xmltv_file, dirs):
-    channel_result = db_utils.get_channel(channel_name)
+    channel_result = db_utils.get_channel(channel_name, dirs['working_dir'])
     if channel_result is None:
-        db_utils.save_channel(channel_name, order, channel_series_id)
+        db_utils.save_channel(channel_name, order, channel_series_id, dirs['working_dir'])
         channel_result = {
             'channel': channel_name,
             'playbackOrder': order,
@@ -117,7 +111,7 @@ def start_channel(channel_name, order, channel_series_id, xmltv_file, dirs):
     target_timestamp = target.replace(hour=5, minute=0, second=0, microsecond=0).timestamp()
     current_timestamp = now.timestamp()
 
-    db_episodes = db_utils.get_episodes_in_order(channel_result['seriesID'], channel_result['nextEpisode'])
+    db_episodes = db_utils.get_episodes_in_order(channel_result['seriesID'], channel_result['nextEpisode'], directories['working_dir'])
 
     # Keep adding to the playlist until it ends past the target timestamp
     while current_timestamp < target_timestamp:
@@ -143,10 +137,10 @@ def start_channel(channel_name, order, channel_series_id, xmltv_file, dirs):
         # episodes in the series starting from absolute order zero and continue adding
         # to the playlist from there
         if current_timestamp < target_timestamp:
-            db_episodes = db_utils.get_episodes_in_order(channel_result['seriesID'], 0)
+            db_episodes = db_utils.get_episodes_in_order(channel_result['seriesID'], 0, directories['working_dir'])
 
     # Update the next episode to play for the channel for the next run
-    db_utils.update_channel_next_episode(channel_name, last_episode_in_playlist + 1)
+    db_utils.update_channel_next_episode(channel_name, last_episode_in_playlist + 1, directories['working_dir'])
 
     # Generate the FFMPEG concat playlist
     concat_playlist = playlist_utils.generate_concat_playlist(playlist, dirs['playlist_dir'], channel_name)
@@ -234,6 +228,7 @@ directories = {
     'log_dir': log_directory
 }
 
+db_utils.initialize_db(directories['working_dir'])
 
 # All input parameters have now been processed and the channels can now be started
 
@@ -260,9 +255,9 @@ for channel in config.sections():
     directory = config.get(channel, "directory")
     playback_order = config.get(channel, "order")
 
-    directory_series_id = db_utils.get_series_id(os.path.basename(directory))
+    directory_series_id = db_utils.get_series_id(os.path.basename(directory), directories['working_dir'])
 
-    populate_all_episode_info(directory)
+    populate_all_episode_info(directory, directories)
     xmltv.remove_channel_programmes(channel, file_xmltv)
     start_channel(channel, playback_order, directory_series_id, file_xmltv, directories)
 
