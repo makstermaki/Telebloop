@@ -55,6 +55,7 @@ def clear_previous_stream_files(channel_name, stream_dir, playlist_dir):
     if os.path.exists(playlist_dir + channel_name + ".txt"):
         os.remove(playlist_dir + channel_name + ".txt")
 
+
 # Given a show name, this function will populate the SQLite DB with all of the episode information
 # for that show
 def populate_tv_maze_episode_info(show_name):

@@ -35,11 +35,8 @@ def remove_past_programmes(root):
 def remove_channel_programmes(channel, root):
     children_to_remove = []
     for child in root:
-        if child.tag == 'programme':
-            print("  ATTRIB: " + child.attrib['channel'])
         if (child.tag == 'programme' and
                 child.attrib['channel'] == (channel + '.tv')):
-            print('DELETED start time: ' + str(child.attrib['start']))
             children_to_remove.append(child)
     for child in children_to_remove:
         root.remove(child)

@@ -19,7 +19,6 @@ def add_channel_if_not_exists(m3u_dir, channel):
     with open(target_m3u_path) as f:
         if 'tvg-name=' + channel in f.read():
             # Channel already exists so leave m3u as is
-            print("Channel already exists in playlist...")
             return
     target_m3u = open(target_m3u_path, "a")
     target_m3u.write('#EXTINF:-1 tvg-ID=' + channel + '.tv' + ' tvg-name=' + channel + ' tvg-logo= group-title=,' + channel + '\n')
