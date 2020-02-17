@@ -207,6 +207,10 @@ def create_series_table(db_dir):
     conn.close()
 
 
+def save_series(local_series_name, db_dir):
+    get_series_id(local_series_name, db_dir)
+
+
 def save_series_id(series_id, series, db_dir):
     conn = connect_db(db_dir)
     c = conn.cursor()
@@ -270,22 +274,27 @@ def create_channels_table(db_dir):
             CREATE TABLE channels (
                 channel text,
                 playback_order text,
-                series_id int,
-                next_episode int
+                shows text,
+                next_episode string
             )
         ''')
     conn.commit()
     conn.close()
 
 
-def save_channel(channel, order, series_id, db_dir):
+def save_channel(channel, order, shows, db_dir):
+    next_episode_string = ""
+    for i in range(len(shows)):
+        next_episode_string += "0,"
+    next_episode_string = next_episode_string[:-1]
+
     conn = connect_db(db_dir)
     c = conn.cursor()
 
-    params = (channel, order, series_id)
+    params = (channel, order, shows, next_episode_string)
     c.execute('''
-        INSERT INTO channels (channel, playback_order, series_id, next_episode)
-        VALUES (?, ?, ?, 0)
+        INSERT INTO channels (channel, playback_order, shows, next_episode)
+        VALUES (?, ?, ?, ?)
     ''', params)
     conn.commit()
     conn.close()
@@ -318,8 +327,8 @@ def get_channel(channel, db_dir):
         return {
             'channel': result[0],
             'playbackOrder': result[1],
-            'seriesID': result[2],
-            'nextEpisode': result[3]
+            'shows': result[2],
+            'nextEpisode': str(result[3])
         }
     return None
 

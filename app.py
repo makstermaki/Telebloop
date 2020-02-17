@@ -62,6 +62,10 @@ def clear_previous_stream_files(channel_name, stream_dir, playlist_dir):
         os.remove(playlist_dir + channel_name + ".txt")
 
 
+def populate_series_info(local_series_name, db_dir):
+    db_utils.save_series(local_series_name, db_dir)
+
+
 # Given a show name, this function will populate the SQLite DB with all of the episode information
 # for that show
 def populate_tv_maze_episode_info(show_name, db_dir):
@@ -91,6 +95,7 @@ def populate_episode_lengths(directory_full_path, db_dir):
         db_utils.save_local_episode(series_id, season, episode, length, file_full_path, db_dir)
 
 
+# Retrieves and loads all episode information given a source directory
 def populate_all_episode_info(directory_full_path, dirs):
     directory_name = os.path.basename(directory_full_path)
     if not db_utils.is_series_metadata_loaded(directory_name, dirs['working_dir']):
@@ -99,16 +104,27 @@ def populate_all_episode_info(directory_full_path, dirs):
         db_utils.update_series_last_updated_time(directory_name, dirs['working_dir'])
 
 
-def start_channel(channel_name, order, channel_series_id, xmltv_file, dirs):
+def start_channel(channel_name, order, shows_list, xmltv_file, dirs):
     channel_result = db_utils.get_channel(channel_name, dirs['working_dir'])
+
+    shows_concat = ','.join(shows_list)
+
     if channel_result is None:
-        db_utils.save_channel(channel_name, order, channel_series_id, dirs['working_dir'])
+        db_utils.save_channel(channel_name, order, shows_concat, dirs['working_dir'])
+        next_episode_string = ""
+        for i in range(len(shows)):
+            next_episode_string += "0,"
+        next_episode_string = next_episode_string[:-1]
         channel_result = {
             'channel': channel_name,
             'playbackOrder': order,
-            'seriesID': channel_series_id,
-            'nextEpisode': 0
+            'shows': shows_concat.split(','),
+            'nextEpisode': next_episode_string
         }
+    else:
+        channel_result['shows'] = channel_result['shows'].split(',')
+
+    next_episodes_list = channel_result['nextEpisode'].split(',')
 
     playlist = []
 
@@ -123,12 +139,24 @@ def start_channel(channel_name, order, channel_series_id, xmltv_file, dirs):
     target_timestamp = target.replace(hour=5, minute=0, second=0, microsecond=0).timestamp()
     current_timestamp = now.timestamp()
 
-    db_episodes = db_utils.get_episodes_in_order(channel_result['seriesID'], channel_result['nextEpisode'], directories['working_dir'])
+    db_series_ids = []
+    db_episodes = []
+    for idx, channel_show in enumerate(channel_result['shows']):
+        series_id = db_utils.get_series_id(channel_show, dirs['working_dir'])
+        db_series_ids.append(series_id)
+        db_episodes.append(db_utils.get_episodes_in_order(series_id, next_episodes_list[idx], directories['working_dir']))
 
     # Keep adding to the playlist until it ends past the target timestamp
+    # When adding episodes from multiple series into a single channel, alternate between the shows
+    # in approx. 20 min blocks (basically aiming to match the content found in a 30 min time block
+    # on standard tv)
+    current_show_index = 0
     while current_timestamp < target_timestamp:
 
-        for episode in db_episodes:
+        current_block_runtime = 0
+        num_episodes_added_to_playlist = 0
+
+        for episode in db_episodes[current_show_index]:
             playlist.append(episode['filePath'])
 
             time_format = '%Y%m%d%H%M%S %z'
@@ -140,19 +168,29 @@ def start_channel(channel_name, order, channel_series_id, xmltv_file, dirs):
 
             current_timestamp = current_timestamp + episode['length']
 
-            last_episode_in_playlist = episode['absoluteOrder']
+            next_episodes_list[current_show_index] = episode['absoluteOrder']
+
+            num_episodes_added_to_playlist += 1
 
             if current_timestamp > target_timestamp:
                 break
 
-        # If the playlist end time still hasn't reached the target time, retrieve all the
-        # episodes in the series starting from absolute order zero and continue adding
-        # to the playlist from there
-        if current_timestamp < target_timestamp:
-            db_episodes = db_utils.get_episodes_in_order(channel_result['seriesID'], 0, directories['working_dir'])
+            current_block_runtime = current_block_runtime + episode['length']
+            if current_block_runtime > (20 * 60):
+                break
+
+        # Remove the episodes already added to the playlist from the DB episodes list
+        # so they are not re-added to the playlist on the next iteration
+        del db_episodes[current_show_index][:num_episodes_added_to_playlist]
+
+        if not len(db_episodes[current_show_index]) and current_timestamp < target_timestamp:
+            db_episodes[current_show_index] = db_utils.get_episodes_in_order(db_series_ids[current_show_index], 0, directories['working_dir'])
+
+        current_show_index = (current_show_index + 1) % len(db_series_ids)
 
     # Update the next episode to play for the channel for the next run
-    db_utils.update_channel_next_episode(channel_name, last_episode_in_playlist + 1, directories['working_dir'])
+    last_episode_in_playlist_string = ",".join([str(x+1) for x in next_episodes_list])
+    db_utils.update_channel_next_episode(channel_name, last_episode_in_playlist_string, directories['working_dir'])
 
     # Generate the FFMPEG concat playlist
     concat_playlist = playlist_utils.generate_concat_playlist(playlist, dirs['playlist_dir'], channel_name)
@@ -186,11 +224,12 @@ except Exception:
     raise Exception('No config file passed in arguments!')
 
 config = configparser.ConfigParser()
+config.optionxform = str
 config.read(config_path)
 
 # Check the config file for any missing parameters and generate the default directories if so
-if config.has_option('GENERAL', 'working_directory'):
-    working_directory = clean_directory_path(config.get('GENERAL', 'working_directory'))
+if config.has_option('General', 'Working Directory'):
+    working_directory = clean_directory_path(config.get('General', 'Working Directory'))
 else:
     working_directory = default_working_dir
     if not os.path.exists(working_directory):
@@ -208,8 +247,8 @@ if not os.path.exists(pid_directory):
     os.mkdir(pid_directory)
 
 # Populate stream directory and XML TV location
-if config.has_option('GENERAL', 'stream_directory'):
-    stream_directory = clean_directory_path(config.get('GENERAL', 'stream_directory'))
+if config.has_option('General', 'Stream Directory'):
+    stream_directory = clean_directory_path(config.get('General', 'Stream Directory'))
 
     if not os.path.exists(stream_directory):
         os.mkdir(stream_directory)
@@ -231,8 +270,8 @@ else:
     else:
         file_xmltv = xmltv.generate_new_xmltv()
 
-if config.has_option('GENERAL', 'log_level'):
-    logging_level = logging.getLevelName(config.get('GENERAL', 'log_level'))
+if config.has_option('General', 'Log Level'):
+    logging_level = logging.getLevelName(config.get('General', 'Log Level'))
 else:
     logging_level = logging.INFO
 
@@ -248,12 +287,17 @@ directories = {
 setup_logger(logging_level, directories['log_dir'])
 db_utils.initialize_db(directories['working_dir'])
 
-# All input parameters have now been processed and the channels can now be started
-
 logging.info("Starting the Home Broadcaster application...")
 
+# Process all shows in the shows config section
+input_shows = dict(config.items('Shows'))
+for show in input_shows:
+    populate_series_info(show, directories['working_dir'])
+    populate_all_episode_info(input_shows[show], directories)
+
+
 for channel in config.sections():
-    if channel == 'GENERAL':
+    if channel == 'General' or channel == 'Shows':
         continue
 
     # Check if the channel is currently running and if so, do nothing
@@ -271,14 +315,15 @@ for channel in config.sections():
 
     logging.debug("Attempting to start channel: " + channel)
 
-    directory = config.get(channel, "directory")
-    playback_order = config.get(channel, "order")
+    # Read all of the shows to be on the channel and trim whitespaces
+    shows = config.get(channel, "Shows").split(',')
+    shows = [x.strip() for x in shows]
 
-    directory_series_id = db_utils.get_series_id(os.path.basename(directory), directories['working_dir'])
-
-    populate_all_episode_info(directory, directories)
+    # Before attempting to start the channel, remove all previous programming for the channel from the
+    # XML TV file to avoid, overlapping programme timings
     xmltv.remove_channel_programmes(channel, file_xmltv)
-    start_channel(channel, playback_order, directory_series_id, file_xmltv, directories)
+
+    start_channel(channel, 'IN_ORDER', shows, file_xmltv, directories)
 
     logging.debug("Finished starting channel: " + channel)
 
