@@ -1,10 +1,15 @@
-[GENERAL]
-working_directory=/home/HomeBroadcaster
-stream_directory=/var/www/html/tv
-log_level=DEBUG
+[General]
+Working Directory: /home/HomeBroadcaster
+Stream Directory: /var/www/html/tv
+Log Level: DEBUG
 
-[CHANNEL_ONE]
-directory=/media/folder/location
+[Shows]
+Show One: /media/folder/location
+Other Show: /media/other/location
+That Show: /media/that/location
 
-[CHANNEL_TWO]
-directory=/other/media/folder/location
+[Channel One]
+Shows: Show One, Other Show
+
+[That Channel]
+Shows: That Show
