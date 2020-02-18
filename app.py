@@ -32,7 +32,7 @@ pid_subdir = 'pid/'
 
 def setup_logger(log_level, log_dir):
     log_location = log_directory + 'homeBroadcaster.log'
-    log_handler = logging.handlers.RotatingFileHandler(filename=log_location, maxBytes=20_000, backupCount=5)
+    log_handler = logging.handlers.RotatingFileHandler(filename=log_location, maxBytes=10_000_000, backupCount=5)
     formatter = logging.Formatter(fmt='[%(asctime)s] %(levelname)s - %(filename)s: %(message)s')
     log_handler.setFormatter(formatter)
     logger = logging.getLogger()
