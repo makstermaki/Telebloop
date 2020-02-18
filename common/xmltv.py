@@ -43,7 +43,6 @@ def remove_channel_programmes(channel, root):
 
 
 def add_channel_if_not_exists(root, channel):
-
     for node in root.findall('channel'):
         if node.attrib['id'] == channel + '.tv':
             # Element already exists for the channel
@@ -56,6 +55,15 @@ def add_channel_if_not_exists(root, channel):
     display_node.text = channel + '.tv'
     channel_node.append(display_node)
     root.append(channel_node)
+
+
+def remove_channel(channel, root):
+    channel_node = None
+    for node in root.findall('channel'):
+        if node.attrib['id'] == channel + '.tv':
+            channel_node = node
+            break
+    root.remove(channel_node)
 
 
 def add_programme(root, channel, start_time, stop_time, title, subtitle, desc):

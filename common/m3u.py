@@ -8,7 +8,17 @@ def generate_new_m3u(m3u_path):
     target_m3u.close()
 
 
-def add_channel_if_not_exists(m3u_dir, channel):
+def remove_channel(channel, m3u_dir):
+    target_m3u_path = m3u_dir + 'tv.m3u'
+    with open(target_m3u_path, "r") as f:
+        lines = f.readlines()
+    with open(target_m3u_path, "w") as f:
+        for line in lines:
+            if not (str("tvg-ID=" + channel + ".tv") in line) and not (str("/" + channel + ".m3u8") in line):
+                f.write(line)
+
+
+def add_channel_if_not_exists(channel, m3u_dir):
     target_m3u_path = m3u_dir
     if not target_m3u_path.endswith('/'):
         target_m3u_path = target_m3u_path + '/'

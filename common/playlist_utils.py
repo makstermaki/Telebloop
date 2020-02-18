@@ -26,6 +26,8 @@ def list_files_with_path(directory):
     result = []
 
     for path in os.listdir(directory):
+        if path == '.DS_Store':
+            continue
         full_path = os.path.join(directory, path)
         result.append(full_path)
 

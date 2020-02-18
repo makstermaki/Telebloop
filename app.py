@@ -6,6 +6,7 @@ import glob
 import logging
 import logging.handlers
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -46,6 +47,13 @@ def check_pid_running(pid):
         return False
     else:
         return True
+
+
+def kill_running_pid(pid):
+    try:
+        os.kill(int(pid), signal.SIGTERM)
+    except:
+        logging.error("Error ocurred when attempting to kill pid: " + pid)
 
 
 def clean_directory_path(path):
@@ -213,7 +221,7 @@ def start_channel(channel_name, order, shows_list, xmltv_file, dirs):
     pid_file.close()
 
     # Add the channel to the central streams playlist
-    m3u.add_channel_if_not_exists(dirs['stream_dir'], channel_name)
+    m3u.add_channel_if_not_exists(channel_name, dirs['stream_dir'])
 
 
 # -----------------SCRIPT STARTS HERE---------------------
@@ -296,6 +304,28 @@ for show in input_shows:
     populate_all_episode_info(input_shows[show], directories)
 
 
+# Stop any channels that have been removed from the config
+pid_files = playlist_utils.list_files_with_path(directories['pid_dir'])
+for pid_file_path in pid_files:
+
+    pid_channel_name = os.path.basename(pid_file_path).replace(".pid", "")
+
+    if not config.has_section(pid_channel_name):
+        old_pid_file = open(pid_file_path)
+        pid = old_pid_file.readline().strip()
+        old_pid_file.close()
+
+        clear_previous_stream_files(pid_channel_name, directories['stream_dir'], directories['playlist_dir'])
+        xmltv.remove_channel(pid_channel_name, file_xmltv)
+        xmltv.remove_channel_programmes(pid_channel_name, file_xmltv)
+        m3u.remove_channel(pid_channel_name, directories['stream_dir'])
+
+        if check_pid_running(pid):
+            logging.debug("Channel currently running but not in config. Stopping channel: " + pid_channel_name)
+            kill_running_pid(pid)
+        os.remove(pid_file_path)
+
+
 for channel in config.sections():
     if channel == 'General' or channel == 'Shows':
         continue
@@ -305,6 +335,7 @@ for channel in config.sections():
     if os.path.exists(pid_file_path):
         old_pid_file = open(pid_file_path)
         ffmpeg_pid = old_pid_file.readline().strip()
+        old_pid_file.close()
         if check_pid_running(ffmpeg_pid):
             # If the channel is already running, nothing needs to be done
             logging.debug(channel + ' already running, skipping...')
