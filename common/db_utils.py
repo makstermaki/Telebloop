@@ -247,7 +247,7 @@ def is_series_metadata_loaded(local_series_name, db_dir):
     ''', (local_series_name,))
     result = c.fetchone()
     conn.close()
-    if result[0] is None:
+    if result is None or result[0] is None:
         return False
     return True
 
