@@ -20,9 +20,14 @@ import common.xmltv as xmltv
 # Throw an exception if this script is already running
 me = singleton.SingleInstance()
 
-# Default Parameters
-default_working_dir = '/tmp/HomeBroadcaster/'
-default_stream_dir = '/var/www/html/tv'
+# Default directories to use if unset in config
+DEFAULT_WORKING_DIR = '/tmp/HomeBroadcaster/'
+DEFAULT_STREAM_DIR = '/var/www/html/tv'
+
+# Default parameters to use for channels if unset in config
+DEFAULT_ORDER = 'Ordered'
+DEFAULT_SEGMENT_RUNTIME = 20
+DEFAULT_CHUNK_SIZE = 1
 
 # Declare the subdirectories to be used
 logs_subdir = 'logs/'
@@ -111,113 +116,28 @@ def populate_all_episode_info(show_name, directory_full_path, dirs):
         db_utils.update_series_last_updated_time(show_name, dirs['working_dir'])
 
 
-def start_channel(channel_name, order, shows_list, xmltv_file, dirs):
-    channel_result = db_utils.get_channel(channel_name, dirs['working_dir'])
+def start_channel(channel_name, channel_options, shows_list, xmltv_file, dirs):
+    db_channel = db_utils.get_channel(channel_name, dirs['working_dir'])
 
-    shows_concat = ','.join(shows_list)
+    if db_channel is None:
+        shows_concat = ','.join(shows_list)
+        db_utils.save_channel(channel_name, channel_options['order'], shows_concat, dirs['working_dir'])
+        db_channel = db_utils.get_channel(channel_name, dirs['working_dir'])
 
-    if channel_result is None:
-        db_utils.save_channel(channel_name, order, shows_concat, dirs['working_dir'])
-        next_episode_string = ""
-        for i in range(len(shows)):
-            next_episode_string += "0,"
-        next_episode_string = next_episode_string[:-1]
-        channel_result = {
-            'channel': channel_name,
-            'playbackOrder': order,
-            'shows': shows_concat.split(','),
-            'nextEpisode': next_episode_string
-        }
+    if db_channel['chunkOffset'] is None:
+        chunk_offset = 0
     else:
-        channel_result['shows'] = channel_result['shows'].split(',')
+        chunk_offset = db_channel['chunkOffset']
 
-    next_episodes_list = channel_result['nextEpisode'].split(',')
-
+    shows_list = db_channel['shows'].split(',')
     playlist = []
 
-    xmltv.add_channel_if_not_exists(xmltv_file, channel_name)
+    for curr_show in shows_list:
+        curr_series_id = db_utils.get_series_id(curr_show, dirs['working_dir'])
+        chunks = db_utils.get_show_in_chunks(curr_series_id, chunk_offset, channel_options['chunk_size'],
+                                             channel_options['segment_runtime'] * 60, dirs['working_dir'])
 
-    # The playlist will be generated such that it ends at the specified time.
-    # DEFAULT: 5 AM
-    now = datetime.datetime.now()
-    day_delta = datetime.timedelta(days=1)
-    target = now + day_delta
 
-    target_timestamp = target.replace(hour=5, minute=0, second=0, microsecond=0).timestamp()
-    current_timestamp = now.timestamp()
-
-    db_series_ids = []
-    db_episodes = []
-    for idx, channel_show in enumerate(channel_result['shows']):
-        series_id = db_utils.get_series_id(channel_show, dirs['working_dir'])
-        db_series_ids.append(series_id)
-        db_episodes.append(db_utils.get_episodes_in_order(series_id, next_episodes_list[idx], directories['working_dir']))
-
-    # Keep adding to the playlist until it ends past the target timestamp
-    # When adding episodes from multiple series into a single channel, alternate between the shows
-    # in approx. 20 min blocks (basically aiming to match the content found in a 30 min time block
-    # on standard tv)
-    current_show_index = 0
-    while current_timestamp < target_timestamp:
-
-        current_block_runtime = 0
-        num_episodes_added_to_playlist = 0
-
-        for episode in db_episodes[current_show_index]:
-            playlist.append(episode['filePath'])
-
-            time_format = '%Y%m%d%H%M%S %z'
-            start_time = time.strftime(time_format, time.localtime(current_timestamp))
-            stop_time = time.strftime(time_format, time.localtime(current_timestamp + episode['length']))
-
-            xmltv.add_programme(xmltv_file, channel_name, start_time, stop_time, episode['title'],
-                                episode['subtitle'], episode['description'])
-
-            current_timestamp = current_timestamp + episode['length']
-
-            next_episodes_list[current_show_index] = episode['absoluteOrder']
-
-            num_episodes_added_to_playlist += 1
-
-            if current_timestamp > target_timestamp:
-                break
-
-            current_block_runtime = current_block_runtime + episode['length']
-            if current_block_runtime > (20 * 60):
-                break
-
-        # Remove the episodes already added to the playlist from the DB episodes list
-        # so they are not re-added to the playlist on the next iteration
-        del db_episodes[current_show_index][:num_episodes_added_to_playlist]
-
-        if not len(db_episodes[current_show_index]) and current_timestamp < target_timestamp:
-            db_episodes[current_show_index] = db_utils.get_episodes_in_order(db_series_ids[current_show_index], 0, directories['working_dir'])
-
-        current_show_index = (current_show_index + 1) % len(db_series_ids)
-
-    # Update the next episode to play for the channel for the next run
-    last_episode_in_playlist_string = ",".join([str(x+1) for x in next_episodes_list])
-    db_utils.update_channel_next_episode(channel_name, last_episode_in_playlist_string, directories['working_dir'])
-
-    # Generate the FFMPEG concat playlist
-    concat_playlist = playlist_utils.generate_concat_playlist(playlist, dirs['playlist_dir'], channel_name)
-
-    # At this point, the FFMPEG playlist has been generated so the stream can be started
-    m3u8_path = dirs['stream_dir'] + channel_name + '.m3u8'
-
-    with open(dirs['log_dir'] + 'ffmpeg.log', "w") as ffmpeg_log_file:
-        proc = subprocess.Popen([
-            "ffmpeg", "-re", "-loglevel", "warning", "-fflags", "+genpts", "-f", "concat", "-safe", "0", "-i",
-            concat_playlist, "-map", "0:a?", "-map", "0:v?", "-strict", "-2", "-dn", "-c", "copy",
-            "-hls_time", "10", "-hls_list_size", "6", "-hls_wrap", "7", m3u8_path
-        ], stderr=ffmpeg_log_file)
-
-    pid_file = open(dirs['pid_dir'] + channel_name + ".pid", "w")
-    pid_file.write(str(proc.pid))
-    pid_file.close()
-
-    # Add the channel to the central streams playlist
-    m3u.add_channel_if_not_exists(channel_name, dirs['stream_dir'])
 
 
 # -----------------SCRIPT STARTS HERE---------------------
@@ -233,11 +153,11 @@ try:
     config.optionxform = str
     config.read(config_path)
 
-    # Check the config file for any missing parameters and generate the default directories if so
+    # Check the config file for any missing directory parameters and generate the default directories if so
     if config.has_option('General', 'Working Directory'):
         working_directory = clean_directory_path(config.get('General', 'Working Directory'))
     else:
-        working_directory = default_working_dir
+        working_directory = DEFAULT_WORKING_DIR
         if not os.path.exists(working_directory):
             os.mkdir(working_directory)
 
@@ -266,11 +186,11 @@ try:
         else:
             file_xmltv = xmltv.generate_new_xmltv()
     else:
-        if not os.path.exists(default_stream_dir):
-            os.mkdir(default_stream_dir)
-        stream_directory = default_stream_dir
+        if not os.path.exists(DEFAULT_STREAM_DIR):
+            os.mkdir(DEFAULT_STREAM_DIR)
+        stream_directory = DEFAULT_STREAM_DIR
 
-        xmltv_path = default_stream_dir + 'xmltv.xml'
+        xmltv_path = DEFAULT_STREAM_DIR + 'xmltv.xml'
         if os.path.exists(xmltv_path):
             file_xmltv = xmltv.open_xmltv(xmltv_path)
         else:
@@ -293,6 +213,17 @@ try:
     setup_logger(logging_level, directories['log_dir'])
     db_utils.initialize_db(directories['working_dir'])
 
+    # Read in any global default parameters if any and create a global default dict
+    # for usage throughout the application
+    if config.has_section('Global Defaults'):
+        GLOBAL_DEFAULTS = {}
+        if config.has_option('Global Defaults', 'Segment Runtime'):
+            GLOBAL_DEFAULTS['Segment Runtime'] = config.getint('Global Defaults', 'Segment Runtime')
+        if config.has_option('Global Defaults', 'Chunk Size'):
+            GLOBAL_DEFAULTS['Chunk Size'] = config.getint('Global Defaults', 'Chunk Size')
+        if config.has_option('Global Defaults', 'Order'):
+            GLOBAL_DEFAULTS['Order'] = config.get('Global Defaults', 'Order')
+
     logging.info("Starting the Home Broadcaster application...")
 
     # Process all shows in the shows config section
@@ -300,7 +231,6 @@ try:
     for show in input_shows:
         populate_series_info(show, directories['working_dir'])
         populate_all_episode_info(show, input_shows[show], directories)
-
 
     # Stop any channels that have been removed from the config
     pid_files = playlist_utils.list_files_with_path(directories['pid_dir'])
@@ -323,7 +253,7 @@ try:
                 kill_running_pid(pid)
             os.remove(pid_file_path)
 
-
+    # Start any channels that are currently not running
     for channel in config.sections():
         if channel == 'General' or channel == 'Shows':
             continue
@@ -348,11 +278,27 @@ try:
         shows = config.get(channel, "Shows").split(',')
         shows = [x.strip() for x in shows]
 
+        # Create dict to hold all options for channel creation and set default values if
+        # parameter not present in config
+        channel_opts = {}
+        if config.has_option(channel, 'Order'):
+            channel_opts['order'] = config.get(channel, 'Order')
+        else:
+            channel_opts['order'] = DEFAULT_ORDER
+        if config.has_option(channel, 'Segment Runtime'):
+            channel_opts['segment_runtime'] = config.get(channel, 'Segment Runtime')
+        else:
+            channel_opts['segment_runtime'] = DEFAULT_SEGMENT_RUNTIME
+        if config.has_option(channel, 'Chunk Size'):
+            channel_opts['chunk_size'] = config.get(channel, 'Chunk Size')
+        else:
+            channel_opts['chunk_size'] = DEFAULT_CHUNK_SIZE
+
         # Before attempting to start the channel, remove all previous programming for the channel from the
         # XML TV file to avoid, overlapping programme timings
         xmltv.remove_channel_programmes(channel, file_xmltv)
 
-        start_channel(channel, 'IN_ORDER', shows, file_xmltv, directories)
+        start_channel(channel, channel_opts, shows, file_xmltv, directories)
 
         logging.debug("Finished starting channel: " + channel)
 
