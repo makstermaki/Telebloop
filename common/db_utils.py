@@ -275,8 +275,8 @@ def create_channels_table(db_dir):
                 channel text,
                 playback_order text,
                 shows text,
-                next_episode string,
-                played_chunks string,
+                next_episode text,
+                played_chunks text,
                 chunk_offset int
             )
         ''')
@@ -305,6 +305,19 @@ def update_channel_next_episode(channel, next_episode, db_dir):
         SET next_episode = ?
         WHERE channel = ?
     ''', (next_episode, channel))
+    conn.commit()
+    conn.close()
+
+
+def update_channel_chunks(channel, played_chunks, chunk_offsets, db_dir):
+    conn = connect_db(db_dir)
+    c = conn.cursor()
+    c.execute('''
+        UPDATE channels
+        SET played_chunks = ?,
+            chunk_offset = ?
+        WHERE channel = ?
+    ''', (played_chunks, chunk_offsets, channel))
     conn.commit()
     conn.close()
 

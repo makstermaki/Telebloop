@@ -125,17 +125,100 @@ def start_channel(channel_name, channel_options, shows_list, xmltv_file, dirs):
         db_channel = db_utils.get_channel(channel_name, dirs['working_dir'])
 
     if db_channel['chunkOffset'] is None:
-        chunk_offset = 0
+        chunk_offset_list = [0] * len(shows_list)
     else:
-        chunk_offset = db_channel['chunkOffset']
+        chunk_offset_list = db_channel['chunkOffset'].split('|')
+        chunk_offset_list = list(map(int, chunk_offset_list))
+
+    if db_channel['playedChunks'] is None:
+        previously_played_chunks = []
+        for _ in range(len(shows_list)):
+            previously_played_chunks.append([])
+    else:
+        previously_played_chunks = []
+        temp_list = []
+        prev_chunk_strings = db_channel['playedChunks'].split('|')
+        for chunk_string in prev_chunk_strings:
+            temp_list.append(chunk_string.split(','))
+        for chunk_string_list in temp_list:
+            if len(chunk_string_list) == 1 and not chunk_string_list[0]:
+                previously_played_chunks.append([])
+            else:
+                previously_played_chunks.append(list(map(int, chunk_string_list)))
 
     shows_list = db_channel['shows'].split(',')
+    series_id_list = [None] * len(shows_list)
+
+    chunked_shows = [None] * len(shows_list)
+
+    for idx, curr_show in enumerate(shows_list):
+        curr_series_id = db_utils.get_series_id(curr_show, dirs['working_dir'])
+        series_id_list[idx] = curr_series_id
+        chunked_shows[idx] = db_utils.get_show_in_chunks(curr_series_id, chunk_offset_list[idx], channel_options['chunk_size'],
+                                                         channel_options['segment_runtime'] * 60, dirs['working_dir'])
+
+        # Remove the previously played chunks
+        temp_list = []
+        for chunk in chunked_shows[idx]:
+            if chunk[0]['absoluteOrder'] not in previously_played_chunks[idx]:
+                temp_list.append(chunk)
+        chunked_shows[idx] = temp_list
+
+    # Start adding episode chunks to the playlist until the desired end time is reached
+    # DEFAULT END TIME: 5 AM next day
+    now = datetime.datetime.now()
+    day_delta = datetime.timedelta(days=1)
+    target = now + day_delta
+    target_timestamp = target.replace(hour=5, minute=0, second=0, microsecond=0).timestamp()
+    current_timestamp = now.timestamp()
+
+    # Keep track of the chunks added to the playlist so on next playlist generation, only the unplayed chunks get
+    # added first. A chunk ID is defined as the lowest absolute order in the chunk
+    added_chunk_ids = previously_played_chunks
+
+    # Used to determine from which list of episodes chunks to add into the playlist
+    current_show_index = 0
+
     playlist = []
 
-    for curr_show in shows_list:
-        curr_series_id = db_utils.get_series_id(curr_show, dirs['working_dir'])
-        chunks = db_utils.get_show_in_chunks(curr_series_id, chunk_offset, channel_options['chunk_size'],
-                                             channel_options['segment_runtime'] * 60, dirs['working_dir'])
+    while current_timestamp < target_timestamp:
+
+        # If the list of episode chunks is empty, regenerate the complete set of chunks from the DB
+        if not chunked_shows[current_show_index]:
+            # Increment the chunk offset so on chunk retrieval, all of the chunks will be different than the previous grab
+            chunk_offset_list[current_show_index] = (chunk_offset_list[current_show_index] + 1) % channel_options['chunk_size']
+            chunked_shows[current_show_index] = db_utils.get_show_in_chunks(series_id_list[current_show_index],
+                                                                            chunk_offset_list[current_show_index],
+                                                                            channel_options['chunk_size'],
+                                                                            channel_options['segment_runtime'] * 60,
+                                                                            dirs['working_dir'])
+            added_chunk_ids[current_show_index].clear()
+
+        chunk_to_add = chunked_shows[current_show_index][0]
+
+        playlist.extend(chunk_to_add)
+        added_chunk_ids[current_show_index].append(chunk_to_add[0]['absoluteOrder'])
+
+        # Add the runtime of the chunk to the current timestamp
+        for episode in chunk_to_add:
+            current_timestamp += episode['length']
+
+        del chunked_shows[current_show_index][0]
+
+        current_show_index = (current_show_index + 1) % len(shows_list)
+
+    # Save the chunks added to the playlist back to the DB, along with the chunk offset
+    played_chunks_string_list = []
+    for chunk_list in added_chunk_ids:
+        played_chunks_string_list.append(','.join(list(map(str, chunk_list))))
+    played_chunks_string = '|'.join(list(map(str, played_chunks_string_list)))
+    chunk_offset_string = '|'.join(list(map(str, chunk_offset_list)))
+    db_utils.update_channel_chunks(channel, played_chunks_string, chunk_offset_string, dirs['working_dir'])
+
+    playlist_filepaths = []
+    for episode in playlist:
+        playlist_filepaths.append(episode['filePath'])
+
 
 
 
@@ -255,7 +338,7 @@ try:
 
     # Start any channels that are currently not running
     for channel in config.sections():
-        if channel == 'General' or channel == 'Shows':
+        if channel == 'General' or channel == 'Shows' or channel == 'Global Defaults':
             continue
 
         # Check if the channel is currently running and if so, do nothing
@@ -286,11 +369,11 @@ try:
         else:
             channel_opts['order'] = DEFAULT_ORDER
         if config.has_option(channel, 'Segment Runtime'):
-            channel_opts['segment_runtime'] = config.get(channel, 'Segment Runtime')
+            channel_opts['segment_runtime'] = int(config.get(channel, 'Segment Runtime'))
         else:
             channel_opts['segment_runtime'] = DEFAULT_SEGMENT_RUNTIME
         if config.has_option(channel, 'Chunk Size'):
-            channel_opts['chunk_size'] = config.get(channel, 'Chunk Size')
+            channel_opts['chunk_size'] = int(config.get(channel, 'Chunk Size'))
         else:
             channel_opts['chunk_size'] = DEFAULT_CHUNK_SIZE
 
