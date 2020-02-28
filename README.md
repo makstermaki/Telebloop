@@ -17,16 +17,16 @@ editing the config, the terms segment and chunk need to be defined.
 
 **Segment** - A grouping of episodes in airing order with a minimum runtime
 
-The purpose of these 2 parameters is to be able to cleaning switch between multiple shows on the same channel which may
+The purpose of these 2 parameters is to be able to cleanly switch between multiple shows on the same channel which may
 have different episodes lengths while replicating the standard TV channel experience. 
 
 As an example, lets say you have 2 shows on the same channel. One show has an episode length of around 12 minutes
 (E.g. a cartoon where 2 episodes play in a 30 min block) and the other has an episode length of around 23 minutes
-(E.g. a standard show such as The Office where a single episode plays in a 30 min block). If you wanted to replicate
+(E.g. a standard show where a single episode plays in a 30 min block). If you wanted to replicate
 the standard TV experience, you would want to play 2 of the 12 minute episodes for every 1 of the 23 minute episodes.
-The achieve this, a segment size of 20 minutes would be set along size a chunk size of 1. What this means is that
-episodes will keep being added to a segment until a runtime of 20 minutes is reached. The segments are then added
-to a chunk until the chunk size is reach, in this case its 1 so there is a single segment. This means for the first
+To achieve this, a segment size of 20 minutes would be set along size a chunk size of 1. What this means is that
+episodes will be added to a segment until a runtime of 20 minutes is reached. The segments are then added
+to a chunk until the chunk size is reached, in this case its 1 so there is a single segment. This means for the first
 show, 2 episodes will exist in the chunk while for the second show, only 1 episode will be in a chunk. The application
 will then alternate between playing a chunk from show one and the a chunk of show two, thus replicating the TV
 experience.
