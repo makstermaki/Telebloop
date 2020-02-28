@@ -6,6 +6,7 @@ import glob
 import logging
 import logging.handlers
 import os
+import random
 import signal
 import subprocess
 import sys
@@ -124,6 +125,7 @@ def start_channel(channel_name, channel_options, shows_list, xmltv_file, dirs):
         db_utils.save_channel(channel_name, channel_options['order'], shows_concat, dirs['working_dir'])
         db_channel = db_utils.get_channel(channel_name, dirs['working_dir'])
 
+    # Retrieve the current chunk offset and previously  played chunks from the DB if the channel already exists
     if db_channel['chunkOffset'] is None:
         chunk_offset_list = [0] * len(shows_list)
     else:
@@ -151,6 +153,7 @@ def start_channel(channel_name, channel_options, shows_list, xmltv_file, dirs):
 
     chunked_shows = [None] * len(shows_list)
 
+    # Retrieve all of the episodes for each show in the channel separated into chunks
     for idx, curr_show in enumerate(shows_list):
         curr_series_id = db_utils.get_series_id(curr_show, dirs['working_dir'])
         series_id_list[idx] = curr_series_id
@@ -163,6 +166,11 @@ def start_channel(channel_name, channel_options, shows_list, xmltv_file, dirs):
             if chunk[0]['absoluteOrder'] not in previously_played_chunks[idx]:
                 temp_list.append(chunk)
         chunked_shows[idx] = temp_list
+
+    # If the ordering of the channel is set to random, shuffle the episode chunks retreived from the DB
+    if channel_options['order'] == 'Random':
+        for show_chunks in chunked_shows:
+            random.shuffle(show_chunks)
 
     # Start adding episode chunks to the playlist until the desired end time is reached
     # DEFAULT END TIME: 5 AM next day
@@ -183,7 +191,7 @@ def start_channel(channel_name, channel_options, shows_list, xmltv_file, dirs):
 
     while current_timestamp < target_timestamp:
 
-        # If the list of episode chunks is empty, regenerate the complete set of chunks from the DB
+        # If the list of episode chunks is empty for a show, regenerate the complete set of chunks from the DB
         if not chunked_shows[current_show_index]:
             # Increment the chunk offset so on chunk retrieval, all of the chunks will be different than the previous grab
             chunk_offset_list[current_show_index] = (chunk_offset_list[current_show_index] + 1) % channel_options['chunk_size']
