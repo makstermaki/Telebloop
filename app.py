@@ -328,8 +328,8 @@ try:
 
     # Read in any global default parameters if any and create a global default dict
     # for usage throughout the application
+    GLOBAL_DEFAULTS = {}
     if config.has_section('Global Defaults'):
-        GLOBAL_DEFAULTS = {}
         if config.has_option('Global Defaults', 'Segment Runtime'):
             GLOBAL_DEFAULTS['Segment Runtime'] = config.getint('Global Defaults', 'Segment Runtime')
         if config.has_option('Global Defaults', 'Chunk Size'):
@@ -397,15 +397,24 @@ try:
         if config.has_option(channel, 'Order'):
             channel_opts['order'] = config.get(channel, 'Order')
         else:
-            channel_opts['order'] = DEFAULT_ORDER
+            if "Order" in GLOBAL_DEFAULTS:
+                channel_opts['order'] = GLOBAL_DEFAULTS["Order"]
+            else:
+                channel_opts['order'] = DEFAULT_ORDER
         if config.has_option(channel, 'Segment Runtime'):
             channel_opts['segment_runtime'] = int(config.get(channel, 'Segment Runtime'))
         else:
-            channel_opts['segment_runtime'] = DEFAULT_SEGMENT_RUNTIME
+            if "Segment Runtime" in GLOBAL_DEFAULTS:
+                channel_opts['segment_runtime'] = GLOBAL_DEFAULTS["Segment Runtime"]
+            else:
+                channel_opts['segment_runtime'] = DEFAULT_SEGMENT_RUNTIME
         if config.has_option(channel, 'Chunk Size'):
             channel_opts['chunk_size'] = int(config.get(channel, 'Chunk Size'))
         else:
-            channel_opts['chunk_size'] = DEFAULT_CHUNK_SIZE
+            if "Chunk Size" in GLOBAL_DEFAULTS:
+                channel_opts['chunk_size'] = GLOBAL_DEFAULTS["Chunk Size"]
+            else:
+                channel_opts['chunk_size'] = DEFAULT_CHUNK_SIZE
 
         # Before attempting to start the channel, remove all previous programming for the channel from the
         # XML TV file to avoid, overlapping programme timings
