@@ -215,12 +215,42 @@ def start_channel(channel_name, channel_options, shows_list, xmltv_file, dirs):
     chunk_offset_string = '|'.join(list(map(str, chunk_offset_list)))
     db_utils.update_channel_chunks(channel, played_chunks_string, chunk_offset_string, dirs['working_dir'])
 
+    # Generate the list of file paths for the FFMPEG playlist along with the XMLTV file
+    xmltv.add_channel_if_not_exists(xmltv_file, channel_name)
+    tv_guide_time = now.timestamp()
+    time_format = '%Y%m%d%H%M%S %z'
     playlist_filepaths = []
     for episode in playlist:
         playlist_filepaths.append(episode['filePath'])
 
+        start_time = time.strftime(time_format, time.localtime(tv_guide_time))
+        stop_time = time.strftime(time_format, time.localtime(tv_guide_time + episode['length']))
 
+        xmltv.add_programme(xmltv_file, channel_name, start_time, stop_time, episode['title'],
+                            episode['subtitle'], episode['description'])
 
+        tv_guide_time = tv_guide_time + episode['length']
+
+    # Generate the FFMPEG concat playlist
+    concat_playlist = playlist_utils.generate_concat_playlist(playlist_filepaths, dirs['playlist_dir'], channel_name)
+
+    # At this point, the FFMPEG playlist has been generated so the stream can be started
+    m3u8_path = dirs['stream_dir'] + channel_name + '.m3u8'
+
+    with open(dirs['log_dir'] + 'ffmpeg.log', "w") as ffmpeg_log_file:
+        proc = subprocess.Popen([
+            "ffmpeg", "-re", "-loglevel", "warning", "-fflags", "+genpts", "-f", "concat", "-safe", "0", "-i",
+            concat_playlist, "-map", "0:a?", "-map", "0:v?", "-strict", "-2", "-dn", "-c", "copy",
+            "-hls_time", "10", "-hls_list_size", "6", "-hls_wrap", "7", m3u8_path
+        ], stderr=ffmpeg_log_file)
+
+    # Save the PID of the FFMPEG process to a file which will be used to determine if a channel is currently running
+    pid_file = open(dirs['pid_dir'] + channel_name + ".pid", "w")
+    pid_file.write(str(proc.pid))
+    pid_file.close()
+
+    # Add the channel to the central streams playlist
+    m3u.add_channel_if_not_exists(channel_name, dirs['stream_dir'])
 
 
 # -----------------SCRIPT STARTS HERE---------------------
