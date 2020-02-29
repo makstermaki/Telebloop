@@ -435,5 +435,7 @@ try:
     xmltv.remove_past_programmes(file_xmltv)
     xmltv.save_to_file(file_xmltv, xmltv_path)
 
+    sys.exit()
+
 except Exception:
     logging.exception("Error occurred in script")
