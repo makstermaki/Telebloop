@@ -435,6 +435,8 @@ try:
     xmltv.remove_past_programmes(file_xmltv)
     xmltv.save_to_file(file_xmltv, xmltv_path)
 
+    logging.info("Application has finished running. Exiting...")
+
     sys.exit()
 
 except Exception:
