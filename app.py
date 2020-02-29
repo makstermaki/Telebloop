@@ -129,7 +129,7 @@ def start_channel(channel_name, channel_options, shows_list, xmltv_file, dirs):
     if db_channel['chunkOffset'] is None:
         chunk_offset_list = [0] * len(shows_list)
     else:
-        chunk_offset_list = db_channel['chunkOffset'].split('|')
+        chunk_offset_list = str(db_channel['chunkOffset']).split('|')
         chunk_offset_list = list(map(int, chunk_offset_list))
 
     if db_channel['playedChunks'] is None:
