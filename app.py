@@ -7,6 +7,7 @@ import logging
 import logging.handlers
 import os
 import random
+import shutil
 import signal
 import subprocess
 import sys
@@ -258,7 +259,10 @@ def start_channel(channel_name, channel_options, shows_list, xmltv_file, dirs):
     pid_file.close()
 
     # Add the channel to the central streams playlist
-    m3u.add_channel_if_not_exists(channel_name, dirs['stream_dir'])
+    if 'logo' in channel_options:
+        m3u.add_channel_with_logo(channel_name, channel_options['logo'], dirs['stream_dir'])
+    else:
+        m3u.add_channel(channel_name, dirs['stream_dir'])
 
 
 # -----------------SCRIPT STARTS HERE---------------------
@@ -317,6 +321,22 @@ try:
         else:
             file_xmltv = xmltv.generate_new_xmltv()
 
+    logo_directory = None
+    if config.has_option('General', 'Logo Directory'):
+        # Create the channel logo directory under the stream directory
+        logo_directory = stream_directory
+        if not logo_directory.endswith('/'):
+            logo_directory = logo_directory + '/'
+        logo_directory = logo_directory + 'logo'
+        if not os.path.exists(logo_directory):
+            os.mkdir(logo_directory)
+
+        # Copy all the files from the user passed logo directory to the streams logo subdirectory
+        input_logo_dir = config.get('General', 'Logo Directory')
+        logo_paths = playlist_utils.list_files_with_path(input_logo_dir)
+        for curr_path in logo_paths:
+            shutil.copy2(curr_path, logo_directory)
+
     if config.has_option('General', 'Log Level'):
         logging_level = logging.getLevelName(config.get('General', 'Log Level'))
     else:
@@ -326,6 +346,7 @@ try:
     directories = {
         'working_dir': working_directory,
         'stream_dir': stream_directory,
+        'logo_dir': logo_directory,
         'playlist_dir': playlist_directory,
         'pid_dir': pid_directory,
         'log_dir': log_directory
@@ -430,6 +451,8 @@ try:
                 channel_opts['chunk_size'] = GLOBAL_DEFAULTS["Chunk Size"]
             else:
                 channel_opts['chunk_size'] = DEFAULT_CHUNK_SIZE
+        if config.has_option(channel, 'Logo'):
+            channel_opts['logo'] = config.get(channel, 'Logo')
 
         # Before attempting to start the channel, remove all previous programming for the channel from the
         # XML TV file to avoid, overlapping programme timings

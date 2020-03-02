@@ -5,6 +5,9 @@ Working Directory: /home/HomeBroadcaster
 # Where to save the generated HLS streams
 Stream Directory: /var/www/html/tv
 
+# Directory where channel logo files are copied from
+Logo Directory: /media/logos
+
 Log Level: INFO
 
 # These properties will be used as the default values if the property is not specifically set for a show. If no global
@@ -31,6 +34,7 @@ They Show: /other/they show
 [THIS_SHOW]
 Shows: This Show
 Order: Ordered
+Logo: this_show.png
 
 # All of the episodes of That Show will first be grouped into chunks of episodes. These chunks will then be shuffled
 # and played in random order.
@@ -39,6 +43,7 @@ Shows: That Show
 Order: Random
 Segment Runtime: 20
 Chunk Size: 4
+Logo: that_show.jpg
 
 # Both shows will first have their episodes grouped into chunks with the given segment and chunk sizes. The chunks
 # will then be played in order, alternating between shows. E.g. chunk 1 of This Show will play, then chunk 1 of That Show,

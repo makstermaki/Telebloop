@@ -23,7 +23,11 @@ def remove_channel(channel, m3u_dir):
                 f.write(line)
 
 
-def add_channel_if_not_exists(channel, m3u_dir):
+def add_channel(channel, m3u_dir):
+    add_channel_with_logo(channel, None, m3u_dir)
+
+
+def add_channel_with_logo(channel, logo_file_name, m3u_dir):
     target_m3u_path = m3u_dir
     if not target_m3u_path.endswith('/'):
         target_m3u_path = target_m3u_path + '/'
@@ -35,11 +39,17 @@ def add_channel_if_not_exists(channel, m3u_dir):
             # Channel already exists so leave m3u as is
             return
     target_m3u = open(target_m3u_path, "a")
-    target_m3u.write('\n#EXTINF:-1 tvg-ID=' + channel + '.tv' + ' tvg-name=' + channel + ' tvg-logo= group-title=,' + channel)
 
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.connect(("8.8.8.8", 80))
     host_ip = s.getsockname()[0]
+
+    if not (logo_file_name is None):
+        logo_file_addr = "http://" + host_ip + "/tv/logos/" + logo_file_name
+        target_m3u.write(
+            '\n#EXTINF:-1 tvg-ID=' + channel + '.tv' + ' tvg-name=' + channel + ' tvg-logo=' + logo_file_addr + ' group-title=,' + channel)
+    else:
+        target_m3u.write('\n#EXTINF:-1 tvg-ID=' + channel + '.tv' + ' tvg-name=' + channel + ' group-title=,' + channel)
 
     target_m3u.write('\nhttp://' + host_ip + '/tv/' + channel + '.m3u8')
     target_m3u.close()
