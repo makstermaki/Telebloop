@@ -54,7 +54,7 @@ def add_channel_if_not_exists(root, channel):
     display_node.attrib['lang'] = 'en'
     display_node.text = channel + '.tv'
     channel_node.append(display_node)
-    root.append(channel_node)
+    root.insert(0, channel_node)
 
 
 def remove_channel(channel, root):
