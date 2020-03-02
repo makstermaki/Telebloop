@@ -1,15 +1,61 @@
 [General]
+# Where to store the log files along with all the other files needed to run
 Working Directory: /home/HomeBroadcaster
+
+# Where to save the generated HLS streams
 Stream Directory: /var/www/html/tv
-Log Level: DEBUG
 
+Log Level: INFO
+
+# These properties will be used as the default values if the property is not specifically set for a show. If no global
+# default values are specified, built in application default values will be used.
+# See the README for a description of what segment size and chunk size mean
+[Global Defaults]
+# Possible Values: Ordered/Random
+Order: Ordered
+
+# Runtime in minutes
+Segment Runtime: 30
+
+# Number of segments per chunk
+Chunk Size: 3
+
+# The directories of the video files for the shows to process. The name of the show should be the official name of the
+# show since it will be searched against online to grab episode information.
 [Shows]
-Show One: /media/folder/location
-Other Show: /media/other/location
-That Show: /media/that/location
+This Show: /folder/show1
+That Show: /other/that show
+They Show: /other/they show
 
-[Channel One]
-Shows: Show One, Other Show
+# Play This Show in the standard, airing order
+[THIS_SHOW]
+Shows: This Show
+Order: Ordered
 
-[That Channel]
+# All of the episodes of That Show will first be grouped into chunks of episodes. These chunks will then be shuffled
+# and played in random order.
+[That_Show]
 Shows: That Show
+Order: Random
+Segment Runtime: 20
+Chunk Size: 4
+
+# Both shows will first have their episodes grouped into chunks with the given segment and chunk sizes. The chunks
+# will then be played in order, alternating between shows. E.g. chunk 1 of This Show will play, then chunk 1 of That Show,
+# and then chunk 2 of This Show... When the last chunk of a show has been reached, the application will loop back to
+# the first chunk of the show, starting from the beginning. Thus, all shows on the same channel do not need to be of the
+# same length
+[Double_Up]
+Shows: This Show, That Show
+Order: Ordered
+Segment Size: 20
+Chunk Size: 2
+
+# Will play a random episode of the This Show, then That Show, then finally They Show, until repeating back to the
+# first show
+[Max_Shuffle]
+Shows: This Show, That Show, They Show
+Order: Random
+Segment Runtime: 1
+Chunk Size: 1
+

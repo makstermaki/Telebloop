@@ -275,7 +275,9 @@ def create_channels_table(db_dir):
                 channel text,
                 playback_order text,
                 shows text,
-                next_episode string
+                next_episode text,
+                played_chunks text,
+                chunk_offset int
             )
         ''')
     conn.commit()
@@ -283,18 +285,13 @@ def create_channels_table(db_dir):
 
 
 def save_channel(channel, order, shows, db_dir):
-    next_episode_string = ""
-    for i in range(len(shows)):
-        next_episode_string += "0,"
-    next_episode_string = next_episode_string[:-1]
-
     conn = connect_db(db_dir)
     c = conn.cursor()
 
-    params = (channel, order, shows, next_episode_string)
+    params = (channel, order, shows)
     c.execute('''
-        INSERT INTO channels (channel, playback_order, shows, next_episode)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO channels (channel, playback_order, shows)
+        VALUES (?, ?, ?)
     ''', params)
     conn.commit()
     conn.close()
@@ -312,6 +309,19 @@ def update_channel_next_episode(channel, next_episode, db_dir):
     conn.close()
 
 
+def update_channel_chunks(channel, played_chunks, chunk_offsets, db_dir):
+    conn = connect_db(db_dir)
+    c = conn.cursor()
+    c.execute('''
+        UPDATE channels
+        SET played_chunks = ?,
+            chunk_offset = ?
+        WHERE channel = ?
+    ''', (played_chunks, chunk_offsets, channel))
+    conn.commit()
+    conn.close()
+
+
 def get_channel(channel, db_dir):
     conn = connect_db(db_dir)
     c = conn.cursor()
@@ -321,16 +331,70 @@ def get_channel(channel, db_dir):
         WHERE channel = ?
     ''', (channel, ))
     result = c.fetchone()
-    conn.commit()
     conn.close()
     if not (result is None):
         return {
             'channel': result[0],
             'playbackOrder': result[1],
             'shows': result[2],
-            'nextEpisode': str(result[3])
+            'nextEpisode': str(result[3]),
+            'playedChunks': result[4],
+            'chunkOffset': result[5]
         }
     return None
+
+
+""" Retrieves all episodes for a show split into chunks.
+    
+    A chunk is made up of a number of segments.
+    A segment is a grouping of the minimum number of episodes with a runtime greater than
+        the user defined runtime
+"""
+def get_show_in_chunks(series_id, chunk_offset, segments_per_chunk, segment_runtime, db_dir):
+
+    # First get all the episodes in order
+    db_episodes = get_episodes_in_order(series_id, 0, db_dir)
+
+    # Separate the list of episodes into chunks
+    chunks_list = []
+    curr_chunk = []
+    curr_segment = []
+    curr_segment_runtime = 0
+    curr_chunk_segment_count = 0
+
+    # First if a non-zero chunk offset is set, create a chunk up to the offset
+    if chunk_offset != 0:
+        chunks_list.append(db_episodes[:chunk_offset])
+        db_episodes = db_episodes[chunk_offset:]
+
+    for idx, episode in enumerate(db_episodes):
+
+        curr_segment.append(episode)
+        curr_segment_runtime += episode['length']
+        # Keep adding to the current segment until the minimum segment runtime is reached
+        if curr_segment_runtime < segment_runtime:
+            continue
+
+        # The current segment has now passed the minimum segment runtime and can be added to the current chunk
+        curr_chunk.extend(curr_segment)
+        curr_chunk_segment_count += 1
+        curr_segment = []
+        curr_segment_runtime = 0
+
+        # If the current chunk has the minimum number of segments required, add the chunk to
+        # the list of chunks
+        if curr_chunk_segment_count >= segments_per_chunk:
+            chunks_list.append(curr_chunk)
+            curr_chunk = []
+            curr_chunk_segment_count = 0
+
+    # Add any partial chunk or segment which may have been generated at the end
+    if curr_segment:
+        curr_chunk.extend(curr_segment)
+    if curr_chunk:
+        chunks_list.append(curr_chunk)
+
+    return chunks_list
 
 
 def table_exists(table_name, db_dir):
