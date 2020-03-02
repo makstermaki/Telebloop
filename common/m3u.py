@@ -8,6 +8,11 @@ def generate_new_m3u(m3u_path):
     target_m3u.close()
 
 
+def generate_m3u_if_not_exists(m3u_path):
+    if not os.path.exists(m3u_path):
+        generate_new_m3u(m3u_path)
+
+
 def remove_channel(channel, m3u_dir):
     target_m3u_path = m3u_dir + 'tv.m3u'
     with open(target_m3u_path, "r") as f:
@@ -23,8 +28,7 @@ def add_channel_if_not_exists(channel, m3u_dir):
     if not target_m3u_path.endswith('/'):
         target_m3u_path = target_m3u_path + '/'
     target_m3u_path = target_m3u_path + 'tv.m3u'
-    if not os.path.exists(target_m3u_path):
-        generate_new_m3u(target_m3u_path)
+    generate_m3u_if_not_exists(target_m3u_path)
 
     with open(target_m3u_path) as f:
         if 'tvg-name=' + channel in f.read():

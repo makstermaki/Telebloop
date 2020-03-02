@@ -374,6 +374,13 @@ try:
                 kill_running_pid(pid)
             os.remove(pid_file_path)
 
+    # Generate the parent m3u file if not exists
+    m3u_path = directories['stream_dir']
+    if not m3u_path.endswith('/'):
+        m3u_path = m3u_path + '/'
+    m3u_path = m3u_path + "tv.m3u"
+    m3u.generate_m3u_if_not_exists(m3u_path)
+
     # Start any channels that are currently not running
     for channel in config.sections():
         if channel == 'General' or channel == 'Shows' or channel == 'Global Defaults':
