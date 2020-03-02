@@ -8,6 +8,11 @@ def generate_new_m3u(m3u_path):
     target_m3u.close()
 
 
+def generate_m3u_if_not_exists(m3u_path):
+    if not os.path.exists(m3u_path):
+        generate_new_m3u(m3u_path)
+
+
 def remove_channel(channel, m3u_dir):
     target_m3u_path = m3u_dir + 'tv.m3u'
     with open(target_m3u_path, "r") as f:
@@ -23,8 +28,7 @@ def add_channel_if_not_exists(channel, m3u_dir):
     if not target_m3u_path.endswith('/'):
         target_m3u_path = target_m3u_path + '/'
     target_m3u_path = target_m3u_path + 'tv.m3u'
-    if not os.path.exists(target_m3u_path):
-        generate_new_m3u(target_m3u_path)
+    generate_m3u_if_not_exists(target_m3u_path)
 
     with open(target_m3u_path) as f:
         if 'tvg-name=' + channel in f.read():
@@ -33,6 +37,9 @@ def add_channel_if_not_exists(channel, m3u_dir):
     target_m3u = open(target_m3u_path, "a")
     target_m3u.write('\n#EXTINF:-1 tvg-ID=' + channel + '.tv' + ' tvg-name=' + channel + ' tvg-logo= group-title=,' + channel)
 
-    host_ip = socket.gethostbyname(socket.gethostname())
-    target_m3u.write('\nhttp://192.168.1.79/tv/' + channel + '.m3u8') # TODO Must dynamically generate the IP address
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))
+    host_ip = s.getsockname()[0]
+
+    target_m3u.write('\nhttp://' + host_ip + '/tv/' + channel + '.m3u8')
     target_m3u.close()
