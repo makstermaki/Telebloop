@@ -374,7 +374,7 @@ try:
         populate_series_info(show, directories['working_dir'])
         populate_all_episode_info(show, input_shows[show], directories)
 
-    # Stop any channels that have been removed from the config
+    # Stop and delete channels that have been removed from the config
     pid_files = playlist_utils.list_files_with_path(directories['pid_dir'])
     for pid_file_path in pid_files:
 
@@ -389,6 +389,7 @@ try:
             xmltv.remove_channel(pid_channel_name, file_xmltv)
             xmltv.remove_channel_programmes(pid_channel_name, file_xmltv)
             m3u.remove_channel(pid_channel_name, directories['stream_dir'])
+            db_utils.delete_channel(pid_channel_name, directories['working_dir'])
 
             if check_pid_running(pid):
                 logging.debug("Channel currently running but not in config. Stopping channel: " + pid_channel_name)

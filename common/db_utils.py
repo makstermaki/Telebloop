@@ -297,6 +297,20 @@ def save_channel(channel, order, shows, db_dir):
     conn.close()
 
 
+def delete_channel(channel, db_dir):
+    conn = connect_db(db_dir)
+    c = conn.cursor()
+
+    params = (channel,)
+    c.execute('''
+        DELETE FROM channels
+        WHERE channel = ?
+    ''', params)
+
+    conn.commit()
+    conn.close()
+
+
 def update_channel_next_episode(channel, next_episode, db_dir):
     conn = connect_db(db_dir)
     c = conn.cursor()
