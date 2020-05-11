@@ -1,15 +1,12 @@
-# Home Broadcaster - PLACEHOLDER
-*Name To Be Determined*
+# Telebloop
 
-This application is for hosting your own IPTV service at home. The application takes directories of video files and
+Telebloop is an application for hosting your own IPTV service at home. The application takes directories of video files and
 creates HLS video streams from them. A XMLTV file will be generated for each channel which contains the TV guide
 information.
 
-This project is heavily inspired by deanochips' own project found [here](https://github.com/deanochips/HLS-XMLTV---Home-Broadcasting).
-
 ### Usage
 
-In order for the application to run, a config file needs to be passed as the first argument when running. An example
+In order for Telebloop to run, a config file needs to be passed as the first argument when running. An example
 config file can be found in the repo. The config file contains comments describing the different fields but before
 editing the config, the terms segment and chunk need to be defined.
 
