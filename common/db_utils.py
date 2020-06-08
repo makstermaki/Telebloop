@@ -277,25 +277,43 @@ def create_channels_table(db_dir):
                 shows text,
                 next_episode text,
                 played_chunks text,
-                chunk_offset int
+                chunk_offset int,
+                config_hash text
             )
         ''')
     conn.commit()
     conn.close()
 
 
-def save_channel(channel, order, shows, db_dir):
+def save_channel(channel, order, shows, config_hash, db_dir):
     conn = connect_db(db_dir)
     c = conn.cursor()
 
-    params = (channel, order, shows)
+    params = (channel, order, shows, config_hash)
     c.execute('''
-        INSERT INTO channels (channel, playback_order, shows)
-        VALUES (?, ?, ?)
+        INSERT INTO channels (channel, playback_order, shows, config_hash)
+        VALUES (?, ?, ?, ?)
     ''', params)
     conn.commit()
     conn.close()
 
+def update_and_reset_channel(channel, order, shows, config_hash, db_dir):
+    conn = connect_db(db_dir)
+    c = conn.cursor()
+
+    params = (order, shows, config_hash, channel)
+    c.execute('''
+        UPDATE channels
+        SET playback_order = ?,
+            shows = ?,
+            played_chunks = NULL,
+            chunk_offset = NULL,
+            config_hash = ?
+        WHERE channel = ?
+    ''', params)
+
+    conn.commit()
+    conn.close()
 
 def delete_channel(channel, db_dir):
     conn = connect_db(db_dir)
@@ -357,6 +375,19 @@ def get_channel(channel, db_dir):
         }
     return None
 
+def get_channel_config_hash(channel, db_dir):
+    conn = connect_db(db_dir)
+    c = conn.cursor()
+    c.execute('''
+        SELECT config_hash
+        FROM channels
+        WHERE channel = ?
+    ''', (channel, ))
+    result = c.fetchone()
+    conn.close()
+    if not (result is None):\
+        return result[0]
+    return None
 
 """ Retrieves all episodes for a show split into chunks.
     

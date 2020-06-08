@@ -132,3 +132,5 @@ dmypy.json
 pid/
 data.db
 config.ini
+test_config.ini
+.vscode/
