@@ -3,6 +3,7 @@ from tendo import singleton
 import configparser
 import datetime
 import glob
+import hashlib
 import logging
 import logging.handlers
 import os
@@ -111,7 +112,6 @@ def populate_episode_lengths(directory_full_path, show_name, db_dir):
 
 # Retrieves and loads all episode information given a source directory
 def populate_all_episode_info(show_name, directory_full_path, dirs):
-    directory_name = os.path.basename(directory_full_path)
     if not db_utils.is_series_metadata_loaded(show_name, dirs['working_dir']):
         populate_tv_maze_episode_info(show_name, dirs['working_dir'])
         populate_episode_lengths(directory_full_path, show_name, dirs['working_dir'])
@@ -121,10 +121,47 @@ def populate_all_episode_info(show_name, directory_full_path, dirs):
 def start_channel(channel_name, channel_options, shows_list, xmltv_file, dirs):
     db_channel = db_utils.get_channel(channel_name, dirs['working_dir'])
 
+    # Generate the channel configuration hash used to determine if the channel
+    # has been updated
+    config_string = ' '.join(shows_list) + channel_options['order'] + str(channel_options['segment_runtime']) + str(channel_options['chunk_size'])
+    hash_object = hashlib.sha1(config_string.encode())
+    curr_config_hash = hash_object.hexdigest()
+
     if db_channel is None:
         shows_concat = ','.join(shows_list)
-        db_utils.save_channel(channel_name, channel_options['order'], shows_concat, dirs['working_dir'])
+        db_utils.save_channel(channel_name, channel_options['order'], shows_concat, curr_config_hash, dirs['working_dir'])
         db_channel = db_utils.get_channel(channel_name, dirs['working_dir'])
+    else:
+        # Check if the channel is currently running
+        pid_file_path = dirs['pid_dir'] + channel_name + '.pid'
+        if os.path.exists(pid_file_path):
+            old_pid_file = open(pid_file_path)
+            ffmpeg_pid = old_pid_file.readline().strip()
+            old_pid_file.close()
+            if check_pid_running(ffmpeg_pid):
+                # If the channel is already running, check if the configuration of the channel
+                # has changed. If so, stop the channel and restart it with the updated configuration
+                prev_config_hash = db_utils.get_channel_config_hash(channel_name, dirs['working_dir'])
+
+                if (curr_config_hash == prev_config_hash):
+                    logging.debug(channel + ' already running, skipping...')
+                    return
+                else:
+                    logging.debug(channel + ' configuration has changed. Restarting channel...')
+                    kill_running_pid(ffmpeg_pid)
+
+                    shows_concat = ','.join(shows_list)
+                    db_utils.update_and_reset_channel(channel_name, channel_options['order'], shows_concat, curr_config_hash, dirs['working_dir'])
+                    db_channel = db_utils.get_channel(channel_name, dirs['working_dir'])
+
+                    clear_previous_stream_files(channel_name, dirs['stream_dir'], dirs['playlist_dir'])
+            else:
+                # Channel stopped running. Clear the old stream files
+                clear_previous_stream_files(channel, dirs['stream_dir'], dirs['playlist_dir'])
+
+    # Before attempting to start the channel, remove all previous programming for the channel from the
+    # XML TV file to avoid overlapping programme timings
+    xmltv.remove_channel_programmes(channel, file_xmltv)
 
     # Retrieve the current chunk offset and previously  played chunks from the DB if the channel already exists
     if db_channel['chunkOffset'] is None:
@@ -408,21 +445,7 @@ try:
         if channel == 'General' or channel == 'Shows' or channel == 'Global Defaults':
             continue
 
-        # Check if the channel is currently running and if so, do nothing
-        pid_file_path = directories['pid_dir'] + channel + '.pid'
-        if os.path.exists(pid_file_path):
-            old_pid_file = open(pid_file_path)
-            ffmpeg_pid = old_pid_file.readline().strip()
-            old_pid_file.close()
-            if check_pid_running(ffmpeg_pid):
-                # If the channel is already running, nothing needs to be done
-                logging.debug(channel + ' already running, skipping...')
-                continue
-            else:
-                # Channel stopped running. Clear the old stream files
-                clear_previous_stream_files(channel, directories['stream_dir'], directories['playlist_dir'])
-
-        logging.debug("Attempting to start channel: " + channel)
+        logging.debug("Processing channel: " + channel)
 
         # Read all of the shows to be on the channel and trim whitespaces
         shows = config.get(channel, "Shows").split(',')
@@ -455,20 +478,16 @@ try:
         if config.has_option(channel, 'Logo'):
             channel_opts['logo'] = config.get(channel, 'Logo')
 
-        # Before attempting to start the channel, remove all previous programming for the channel from the
-        # XML TV file to avoid, overlapping programme timings
-        xmltv.remove_channel_programmes(channel, file_xmltv)
-
         start_channel(channel, channel_opts, shows, file_xmltv, directories)
 
-        logging.debug("Finished starting channel: " + channel)
+        logging.debug("Finished processing channel: " + channel)
 
     xmltv.remove_past_programmes(file_xmltv)
     xmltv.save_to_file(file_xmltv, xmltv_path)
 
     logging.info("Application has finished running. Exiting...")
 
-    sys.exit()
-
-except Exception:
+except Exception as err:
     logging.exception("Error occurred in script")
+
+sys.exit()
