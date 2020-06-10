@@ -238,6 +238,10 @@ def start_channel(channel_name, channel_options, shows_list, xmltv_file, dirs):
                                                                             channel_options['chunk_size'],
                                                                             channel_options['segment_runtime'] * 60,
                                                                             dirs['working_dir'])
+                                                                                        
+            if channel_options['order'] == 'Random':
+                random.shuffle(chunked_shows[current_show_index])
+
             added_chunk_ids[current_show_index].clear()
 
         chunk_to_add = chunked_shows[current_show_index][0]
