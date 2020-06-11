@@ -301,9 +301,9 @@ def start_channel(channel_name, channel_options, shows_list, xmltv_file, dirs):
 
     # Add the channel to the central streams playlist
     if 'logo' in channel_options:
-        m3u.add_channel_with_logo(channel_name, channel_options['logo'], dirs['stream_dir'])
+        m3u.add_channel_with_logo(channel_name, channel_options['logo'], channel_options['auth'], dirs['stream_dir'])
     else:
-        m3u.add_channel(channel_name, dirs['stream_dir'])
+        m3u.add_channel(channel_name, channel_options['auth'], dirs['stream_dir'])
 
 
 # -----------------SCRIPT STARTS HERE---------------------
@@ -361,6 +361,12 @@ try:
             file_xmltv = xmltv.open_xmltv(xmltv_path)
         else:
             file_xmltv = xmltv.generate_new_xmltv()
+
+    # Check if authentication parameters are set in the config
+    auth_options = {}
+    if (config.has_option('Authentication', 'Username') and config.has_option('Authentication', 'Password')):
+        auth_options['Username'] = config.get('Authentication', 'Username')
+        auth_options['Password'] = config.get('Authentication', 'Password')
 
     logo_directory = None
     if config.has_option('General', 'Logo Directory'):
@@ -446,7 +452,7 @@ try:
 
     # Start any channels that are currently not running
     for channel in config.sections():
-        if channel == 'General' or channel == 'Shows' or channel == 'Global Defaults':
+        if channel == 'General' or channel == 'Shows' or channel == 'Global Defaults' or channel == 'Authentication':
             continue
 
         logging.debug("Processing channel: " + channel)
@@ -481,6 +487,10 @@ try:
                 channel_opts['chunk_size'] = DEFAULT_CHUNK_SIZE
         if config.has_option(channel, 'Logo'):
             channel_opts['logo'] = config.get(channel, 'Logo')
+        if "Username" in auth_options and "Password" in auth_options:
+            channel_opts['auth'] = {}
+            channel_opts['auth']['username'] = auth_options['Username']
+            channel_opts['auth']['password'] = auth_options['Password']
 
         start_channel(channel, channel_opts, shows, file_xmltv, directories)
 

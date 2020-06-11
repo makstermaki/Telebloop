@@ -1,6 +1,6 @@
 import os
-import socket
-
+import requests
+import urllib.parse
 
 def generate_new_m3u(m3u_path):
     target_m3u = open(m3u_path, "w")
@@ -23,11 +23,11 @@ def remove_channel(channel, m3u_dir):
                 f.write(line)
 
 
-def add_channel(channel, m3u_dir):
-    add_channel_with_logo(channel, None, m3u_dir)
+def add_channel(channel, auth, m3u_dir):
+    add_channel_with_logo(channel, None, auth, m3u_dir)
 
 
-def add_channel_with_logo(channel, logo_file_name, m3u_dir):
+def add_channel_with_logo(channel, logo_file_name, auth, m3u_dir):
     target_m3u_path = m3u_dir
     if not target_m3u_path.endswith('/'):
         target_m3u_path = target_m3u_path + '/'
@@ -40,9 +40,7 @@ def add_channel_with_logo(channel, logo_file_name, m3u_dir):
             return
     target_m3u = open(target_m3u_path, "a")
 
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.connect(("8.8.8.8", 80))
-    host_ip = s.getsockname()[0]
+    host_ip = requests.get('https://api.ipify.org').text
 
     if not (logo_file_name is None):
         logo_file_addr = "http://" + host_ip + "/tv/logos/" + logo_file_name
@@ -51,5 +49,10 @@ def add_channel_with_logo(channel, logo_file_name, m3u_dir):
     else:
         target_m3u.write('\n#EXTINF:-1 tvg-ID=' + channel + '.tv' + ' tvg-name=' + channel + ' group-title=,' + channel)
 
-    target_m3u.write('\nhttp://' + host_ip + '/tv/' + channel + '.m3u8')
+    if not (auth is None):
+        user = urllib.parse.quote(auth['username'])
+        password = urllib.parse.quote(auth['password'])
+        target_m3u.write('\nhttp://' + user + ':' + password + '@' + host_ip + '/tv/' + channel + '.m3u8')
+    else:
+        target_m3u.write('\nhttp://' + host_ip + '/tv/' + channel + '.m3u8')
     target_m3u.close()
