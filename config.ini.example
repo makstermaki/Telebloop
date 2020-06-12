@@ -10,6 +10,15 @@ Logo Directory: /media/logos
 
 Log Level: INFO
 
+# Optional: Port to be set in the m3u playlist
+Port: 2468
+
+# Username and password to be set in the m3u playlist if the web server has auth enabled
+[Authentication]
+Username: username
+Password: password
+
+
 # These properties will be used as the default values if the property is not specifically set for a show. If no global
 # default values are specified, built in application default values will be used.
 # See the README for a description of what segment size and chunk size mean
