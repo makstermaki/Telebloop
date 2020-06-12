@@ -301,9 +301,9 @@ def start_channel(channel_name, channel_options, shows_list, xmltv_file, dirs):
 
     # Add the channel to the central streams playlist
     if 'logo' in channel_options:
-        m3u.add_channel_with_logo(channel_name, channel_options['logo'], channel_options['auth'], dirs['stream_dir'])
+        m3u.add_channel_with_logo(channel_name, channel_options['logo'], channel_options['port'], channel_options['auth'], dirs['stream_dir'])
     else:
-        m3u.add_channel(channel_name, channel_options['auth'], dirs['stream_dir'])
+        m3u.add_channel(channel_name, channel_options['port'], channel_options['auth'], dirs['stream_dir'])
 
 
 # -----------------SCRIPT STARTS HERE---------------------
@@ -361,6 +361,11 @@ try:
             file_xmltv = xmltv.open_xmltv(xmltv_path)
         else:
             file_xmltv = xmltv.generate_new_xmltv()
+
+    # Check if a port to use is set in the config
+    port = None
+    if config.has_option('General', 'Port'):
+        port = config.get('General', 'Port')
 
     # Check if authentication parameters are set in the config
     auth_options = {}
@@ -491,6 +496,10 @@ try:
             channel_opts['auth'] = {}
             channel_opts['auth']['username'] = auth_options['Username']
             channel_opts['auth']['password'] = auth_options['Password']
+        if not (port is None):
+            channel_opts['port'] = port
+        else:
+            channel_opts['port'] = None
 
         start_channel(channel, channel_opts, shows, file_xmltv, directories)
 

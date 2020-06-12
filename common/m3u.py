@@ -23,11 +23,11 @@ def remove_channel(channel, m3u_dir):
                 f.write(line)
 
 
-def add_channel(channel, auth, m3u_dir):
-    add_channel_with_logo(channel, None, auth, m3u_dir)
+def add_channel(channel, port, auth, m3u_dir):
+    add_channel_with_logo(channel, None, port, auth, m3u_dir)
 
 
-def add_channel_with_logo(channel, logo_file_name, auth, m3u_dir):
+def add_channel_with_logo(channel, logo_file_name, port, auth, m3u_dir):
     target_m3u_path = m3u_dir
     if not target_m3u_path.endswith('/'):
         target_m3u_path = target_m3u_path + '/'
@@ -52,7 +52,13 @@ def add_channel_with_logo(channel, logo_file_name, auth, m3u_dir):
     if not (auth is None):
         user = urllib.parse.quote(auth['username'])
         password = urllib.parse.quote(auth['password'])
-        target_m3u.write('\nhttp://' + user + ':' + password + '@' + host_ip + '/tv/' + channel + '.m3u8')
+        if not (port is None):
+            target_m3u.write('\nhttp://' + user + ':' + password + '@' + host_ip + ':' + port + '/tv/' + channel + '.m3u8')
+        else:
+            target_m3u.write('\nhttp://' + user + ':' + password + '@' + host_ip + '/tv/' + channel + '.m3u8')
     else:
-        target_m3u.write('\nhttp://' + host_ip + '/tv/' + channel + '.m3u8')
+        if not (port is None):
+            target_m3u.write('\nhttp://' + host_ip + ':' + port + '/tv/' + channel + '.m3u8')
+        else:
+            target_m3u.write('\nhttp://' + host_ip + '/tv/' + channel + '.m3u8')
     target_m3u.close()
