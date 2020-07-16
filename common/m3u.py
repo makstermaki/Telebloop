@@ -22,12 +22,10 @@ def remove_channel(channel, m3u_dir):
             if not (str("tvg-ID=" + channel + ".tv") in line) and not (str("/" + channel + ".m3u8") in line):
                 f.write(line)
 
+def add_channel(channel, domain_name, port, auth, m3u_dir):
+    add_channel_with_logo(channel, None, domain_name, port, auth, m3u_dir)
 
-def add_channel(channel, port, auth, m3u_dir):
-    add_channel_with_logo(channel, None, port, auth, m3u_dir)
-
-
-def add_channel_with_logo(channel, logo_file_name, port, auth, m3u_dir):
+def add_channel_with_logo(channel, logo_file_name, domain_name, port, auth, m3u_dir):
     target_m3u_path = m3u_dir
     if not target_m3u_path.endswith('/'):
         target_m3u_path = target_m3u_path + '/'
@@ -40,10 +38,13 @@ def add_channel_with_logo(channel, logo_file_name, port, auth, m3u_dir):
             return
     target_m3u = open(target_m3u_path, "a")
 
-    host_ip = requests.get('https://api.ipify.org').text
+    if not (domain_name is None):
+        url_address = domain_name
+    else:
+        url_address = requests.get('https://api.ipify.org').text
 
     if not (logo_file_name is None):
-        logo_file_addr = "http://" + host_ip + "/tv/logos/" + logo_file_name
+        logo_file_addr = "http://" + url_address + "/tv/logos/" + logo_file_name
         target_m3u.write(
             '\n#EXTINF:-1 tvg-ID=' + channel + '.tv' + ' tvg-name=' + channel + ' tvg-logo=' + logo_file_addr + ' group-title=,' + channel)
     else:
@@ -53,12 +54,12 @@ def add_channel_with_logo(channel, logo_file_name, port, auth, m3u_dir):
         user = urllib.parse.quote(auth['username'])
         password = urllib.parse.quote(auth['password'])
         if not (port is None):
-            target_m3u.write('\nhttp://' + user + ':' + password + '@' + host_ip + ':' + port + '/tv/' + channel + '.m3u8')
+            target_m3u.write('\nhttp://' + user + ':' + password + '@' + url_address + ':' + port + '/tv/' + channel + '.m3u8')
         else:
-            target_m3u.write('\nhttp://' + user + ':' + password + '@' + host_ip + '/tv/' + channel + '.m3u8')
+            target_m3u.write('\nhttp://' + user + ':' + password + '@' + url_address + '/tv/' + channel + '.m3u8')
     else:
         if not (port is None):
-            target_m3u.write('\nhttp://' + host_ip + ':' + port + '/tv/' + channel + '.m3u8')
+            target_m3u.write('\nhttp://' + url_address + ':' + port + '/tv/' + channel + '.m3u8')
         else:
-            target_m3u.write('\nhttp://' + host_ip + '/tv/' + channel + '.m3u8')
+            target_m3u.write('\nhttp://' + url_address + '/tv/' + channel + '.m3u8')
     target_m3u.close()
