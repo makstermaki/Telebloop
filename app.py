@@ -246,7 +246,7 @@ def start_channel(channel_name, channel_options, shows_list, xmltv_file, dirs):
 
         chunk_to_add = chunked_shows[current_show_index][0]
 
-        playlist.extend(chunk_to_add)
+        playlist.append(chunk_to_add)
         added_chunk_ids[current_show_index].append(chunk_to_add[0]['absoluteOrder'])
 
         # Add the runtime of the chunk to the current timestamp
@@ -256,6 +256,16 @@ def start_channel(channel_name, channel_options, shows_list, xmltv_file, dirs):
         del chunked_shows[current_show_index][0]
 
         current_show_index = (current_show_index + 1) % len(shows_list)
+
+    # If the channel is set to Extra Random, shuffle the playlist of episodes one more time
+    if channel_options['order'] == 'Extra Random':
+        random.shuffle(playlist)
+
+    flattened_playlist = []
+    for sublist in playlist:
+        for item in sublist:
+            flattened_playlist.append(item)
+    playlist = flattened_playlist
 
     # Save the chunks added to the playlist back to the DB, along with the chunk offset
     played_chunks_string_list = []

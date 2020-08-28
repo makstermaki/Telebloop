@@ -23,7 +23,7 @@ Password: password
 # default values are specified, built in application default values will be used.
 # See the README for a description of what segment size and chunk size mean
 [Global Defaults]
-# Possible Values: Ordered/Random
+# Possible Values: Ordered/Random/Extra Random
 Order: Ordered
 
 # Runtime in minutes
